@@ -11,9 +11,16 @@ interface BodyMapProps {
   onTabChange: (tab: string) => void;
   activeHotspot: string;
   onHotspotChange: (id: string) => void;
+  overlaySuppressed?: boolean;
 }
 
-export default function BodyMap({ activeTab, onTabChange, activeHotspot, onHotspotChange }: BodyMapProps) {
+export default function BodyMap({
+  activeTab,
+  onTabChange,
+  activeHotspot,
+  onHotspotChange,
+  overlaySuppressed = false,
+}: BodyMapProps) {
   return (
     <div className="flex flex-col h-full">
       {/* ── Tab navigation ── */}
@@ -62,6 +69,7 @@ export default function BodyMap({ activeTab, onTabChange, activeHotspot, onHotsp
             <Body3DScene
               activeHotspot={activeHotspot}
               onHotspotChange={onHotspotChange}
+              overlaySuppressed={overlaySuppressed}
             />
           </Suspense>
         </div>

@@ -149,6 +149,7 @@ export default function DashboardPage() {
           onTabChange={setActiveTab}
           activeHotspot={activeHotspot}
           onHotspotChange={setActiveHotspot}
+          overlaySuppressed={quickEntryOpen}
         />
       </div>
 
