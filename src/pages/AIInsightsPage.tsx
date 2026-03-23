@@ -59,6 +59,7 @@ export default function AIInsightsPage() {
 
   const [loading, setLoading] = useState(true);
   const [score,   setScore]   = useState(0);
+  const [micActive, setMicActive] = useState(false);
 
   // Veil refs
   const veilRef      = useRef<HTMLDivElement>(null);
@@ -283,7 +284,15 @@ export default function AIInsightsPage() {
               <p className="font-mono text-[10px] text-ink-muted mt-0.5 uppercase tracking-wider">MRN: 849-291-B</p>
             </div>
           </div>
-          <button className="w-10 h-10 rounded-full bg-paper border border-black/5 flex items-center justify-center text-ink-muted hover:text-ink-main hover:bg-cream transition shadow-sm">
+          <button
+            onClick={() => setMicActive(prev => !prev)}
+            aria-label={micActive ? 'Stop voice input' : 'Start voice input'}
+            className={`w-10 h-10 rounded-full border flex items-center justify-center transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 ${
+              micActive
+                ? 'bg-rose-light border-rose-dark/30 text-rose-dark animate-pulse'
+                : 'bg-paper border-black/5 text-ink-muted hover:text-ink-main hover:bg-cream'
+            }`}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -504,7 +513,7 @@ export default function AIInsightsPage() {
                   </div>
                   <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Population Comparison</h3>
                 </div>
-                <span className="text-[10px] font-mono bg-ivory border border-black/5 px-2 py-1 rounded text-ink-soft">
+                <span className="text-[10px] font-mono bg-ivory border border-black/5 px-2 py-1 rounded text-ink-muted">
                   Demographic: 45F
                 </span>
               </div>

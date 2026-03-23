@@ -255,7 +255,11 @@ export default function BodyMap({ activeTab, onTabChange, activeHotspot, onHotsp
                 ref={(el) => { hotspotRefs.current[i] = el; }}
                 transform={`translate(${pos.x}, ${pos.y})`}
                 style={{ cursor: 'pointer', transformOrigin: `${pos.x}px ${pos.y}px` }}
+                role="button"
+                tabIndex={0}
+                aria-label={hotspot.label}
                 onClick={() => onHotspotChange(hotspot.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onHotspotChange(hotspot.id); } }}
                 onMouseEnter={() => setHoveredHotspot(hotspot.id)}
                 onMouseLeave={() => setHoveredHotspot(null)}
               >
@@ -341,9 +345,10 @@ export default function BodyMap({ activeTab, onTabChange, activeHotspot, onHotsp
           {['+', '−'].map((sign) => (
             <motion.button
               key={sign}
+              aria-label={sign === '+' ? 'Zoom in' : 'Zoom out'}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.92 }}
-              className="w-7 h-7 bg-paper border border-sand-light/60 rounded-lg text-ink-muted text-sm font-bold shadow-card flex items-center justify-center hover:bg-ivory transition-colors duration-150"
+              className="w-7 h-7 bg-paper border border-sand-light/60 rounded-lg text-ink-muted text-sm font-bold shadow-card flex items-center justify-center hover:bg-ivory transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ink-main/40 focus-visible:outline-none"
             >
               {sign}
             </motion.button>

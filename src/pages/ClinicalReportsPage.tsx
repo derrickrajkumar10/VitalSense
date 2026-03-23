@@ -97,11 +97,28 @@ export default function ClinicalReportsPage() {
   const navigate = useNavigate();
   const [score, setScore] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const gaugeRef   = useRef<SVGPathElement>(null);
   const ecgRef     = useRef<SVGPathElement>(null);
   const barRefs    = useRef<(HTMLDivElement | null)[]>([]);
   const mainRef    = useRef<HTMLDivElement>(null);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  };
 
   const handleDownloadPDF = async () => {
     if (!mainRef.current || pdfLoading) return;
@@ -214,13 +231,13 @@ export default function ClinicalReportsPage() {
               </svg>
               Print
             </button>
-            <button className="px-5 py-2.5 border border-black/10 bg-paper rounded-xl text-sm font-medium text-ink-main hover:bg-cream transition flex items-center gap-2 shadow-sm">
+            <button onClick={handleShare} className="px-5 py-2.5 border border-black/10 bg-paper rounded-xl text-sm font-medium text-ink-main hover:bg-cream transition flex items-center gap-2 shadow-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
                 <polyline points="16 6 12 2 8 6"/>
                 <line x1="12" y1="2" x2="12" y2="15"/>
               </svg>
-              Share
+              {shareCopied ? 'Link Copied!' : 'Share'}
             </button>
             <button onClick={handleDownloadPDF} disabled={pdfLoading} className="px-6 py-2.5 bg-ink-main text-paper rounded-xl text-sm font-medium hover:bg-ink-main/90 transition shadow-[0_4px_14px_rgba(44,41,38,0.2)] flex items-center gap-2 disabled:opacity-60">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

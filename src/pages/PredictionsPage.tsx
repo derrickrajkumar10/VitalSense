@@ -260,7 +260,10 @@ export default function PredictionsPage() {
             Prediction Analysis
           </div>
 
-          <button className="px-4 py-2.5 rounded-lg text-sm font-medium text-ink-muted hover:bg-black/5 hover:text-ink-main transition flex items-center gap-3 w-full text-left">
+          <button
+            onClick={() => navigate('/history')}
+            className="px-4 py-2.5 rounded-lg text-sm font-medium text-ink-muted hover:bg-black/5 hover:text-ink-main transition flex items-center gap-3 w-full text-left"
+          >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
@@ -520,7 +523,7 @@ export default function PredictionsPage() {
             </div>
 
             {/* Export */}
-            <button className="ri w-full bg-ink-main text-paper py-3.5 rounded-xl font-medium text-sm shadow-[0_4px_14px_rgba(44,41,38,0.2)] hover:bg-ink-main/90 transition-all flex items-center justify-center gap-2" style={{ transform: 'translateY(20px)' }}>
+            <button onClick={() => navigate('/reports')} className="ri w-full bg-ink-main text-paper py-3.5 rounded-xl font-medium text-sm shadow-[0_4px_14px_rgba(44,41,38,0.2)] hover:bg-ink-main/90 transition-all flex items-center justify-center gap-2" style={{ transform: 'translateY(20px)' }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>

@@ -145,21 +145,21 @@ export default function SignupPage() {
           {/* Full Name */}
           <input
             type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-            placeholder="Full Name" required
+            placeholder="Full Name" required aria-label="Full name"
             className="w-full px-4 py-3.5 bg-ivory/50 border border-black/10 rounded-xl text-[15px] outline-none focus:bg-paper focus:border-sage-dark focus:ring-1 focus:ring-sage-dark transition-all placeholder:text-ink-soft text-ink-main font-medium shadow-inner-soft"
           />
 
           {/* Email */}
           <input
             type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email address" required
+            placeholder="Email address" required aria-label="Email address"
             className="w-full px-4 py-3.5 bg-ivory/50 border border-black/10 rounded-xl text-[15px] outline-none focus:bg-paper focus:border-sage-dark focus:ring-1 focus:ring-sage-dark transition-all placeholder:text-ink-soft text-ink-main font-medium shadow-inner-soft"
           />
 
           {/* Specialty */}
           <div className="relative">
             <select
-              value={specialty} onChange={(e) => setSpecialty(e.target.value)} required
+              value={specialty} onChange={(e) => setSpecialty(e.target.value)} required aria-label="Clinical specialty"
               className={`w-full px-4 py-3.5 bg-ivory/50 border border-black/10 rounded-xl text-[15px] outline-none focus:bg-paper focus:border-sage-dark focus:ring-1 focus:ring-sage-dark transition-all font-medium shadow-inner-soft cursor-pointer appearance-none ${!specialty ? 'text-ink-soft' : 'text-ink-main'}`}
             >
               <option value="" disabled>Clinical Specialty</option>
@@ -184,11 +184,11 @@ export default function SignupPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create Password" required
+                placeholder="Create Password" required aria-label="Password"
                 className="w-full pl-4 pr-12 py-3.5 bg-ivory/50 border border-black/10 rounded-xl text-[15px] outline-none focus:bg-paper focus:border-sage-dark focus:ring-1 focus:ring-sage-dark transition-all placeholder:text-ink-soft text-ink-main font-medium font-mono tracking-wider shadow-inner-soft"
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ink-soft hover:text-ink-main transition-colors outline-none rounded-md">
+              <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ink-soft hover:text-ink-main transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 rounded-md">
                 <EyeIcon visible={showPassword} />
               </button>
             </div>
@@ -223,15 +223,15 @@ export default function SignupPage() {
             <input
               type={showConfirm ? 'text' : 'password'}
               value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm Password" required
+              placeholder="Confirm Password" required aria-label="Confirm password"
               className={`w-full pl-4 pr-12 py-3.5 bg-ivory/50 border rounded-xl text-[15px] outline-none focus:bg-paper transition-all placeholder:text-ink-soft font-medium font-mono tracking-wider shadow-inner-soft ${
                 confirmError
                   ? 'border-rose-dark/50 text-rose-dark focus:border-rose-dark focus:ring-1 focus:ring-rose-dark'
                   : 'border-black/10 text-ink-main focus:border-sage-dark focus:ring-1 focus:ring-sage-dark'
               }`}
             />
-            <button type="button" onClick={() => setShowConfirm(!showConfirm)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ink-soft hover:text-ink-main transition-colors outline-none rounded-md">
+            <button type="button" aria-label={showConfirm ? 'Hide password' : 'Show password'} onClick={() => setShowConfirm(!showConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ink-soft hover:text-ink-main transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 rounded-md">
               <EyeIcon visible={showConfirm} />
             </button>
           </div>
@@ -259,9 +259,9 @@ export default function SignupPage() {
               </div>
               <span className="text-[13px] font-medium text-ink-muted group-hover:text-ink-main transition-colors leading-relaxed select-none pt-[1px]">
                 I agree to the{' '}
-                <a href="#" onClick={(e) => e.stopPropagation()} className="text-ink-main hover:text-sage-dark transition-colors underline decoration-black/20 underline-offset-2">Terms of Service</a>
+                <a href="#" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} className="text-ink-main hover:text-sage-dark transition-colors underline decoration-black/20 underline-offset-2">Terms of Service</a>
                 {' '}and{' '}
-                <a href="#" onClick={(e) => e.stopPropagation()} className="text-ink-main hover:text-sage-dark transition-colors underline decoration-black/20 underline-offset-2">Privacy Policy</a>.
+                <a href="#" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} className="text-ink-main hover:text-sage-dark transition-colors underline decoration-black/20 underline-offset-2">Privacy Policy</a>.
               </span>
             </label>
           </div>

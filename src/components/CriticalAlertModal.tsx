@@ -33,6 +33,35 @@ export default function CriticalAlertModal({ data, onDismiss }: Props) {
     return () => ctx.revert();
   }, []);
 
+  // ── Focus trap ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const modal = modalRef.current;
+    if (!modal) return;
+    const prevFocus = document.activeElement as HTMLElement;
+    const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ));
+    // Delay focus until entrance animation completes
+    const timer = setTimeout(() => focusable[0]?.focus(), 600);
+
+    const trapFocus = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('keydown', trapFocus);
+      prevFocus?.focus();
+    };
+  }, []);
+
   // ── Exit animation then unmount ───────────────────────────────────────────
   const handleDismiss = () => {
     gsap.to(modalRef.current,   { scale: 0.96, y: 8, opacity: 0, duration: 0.24, ease: 'vitalize-sharp' });
@@ -107,7 +136,8 @@ export default function CriticalAlertModal({ data, onDismiss }: Props) {
             {/* Actions */}
             <div className="w-full flex flex-col gap-3">
               <button
-                className="w-full py-4 rounded-xl bg-rose-dark text-paper font-medium text-[15px] shadow-[0_4px_14px_rgba(138,75,75,0.25),inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-[#7A4242] transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+                onClick={() => { window.location.href = 'tel:911'; }}
+                className="w-full py-4 rounded-xl bg-rose-dark text-paper font-medium text-[15px] shadow-[0_4px_14px_rgba(138,75,75,0.25),inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-[#7A4242] transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-dark/60 focus-visible:ring-offset-2"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -116,7 +146,7 @@ export default function CriticalAlertModal({ data, onDismiss }: Props) {
               </button>
               <button
                 onClick={handleDismiss}
-                className="w-full py-4 rounded-xl bg-transparent border border-black/10 text-ink-main font-medium text-[15px] hover:bg-black/5 hover:border-black/20 transition-all active:scale-[0.98]"
+                className="w-full py-4 rounded-xl bg-transparent border border-black/10 text-ink-main font-medium text-[15px] hover:bg-black/5 hover:border-black/20 transition-all active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30"
               >
                 Dismiss
               </button>

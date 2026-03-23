@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function CTASection() {
   const ref = useRef(null);
@@ -49,22 +50,22 @@ export default function CTASection() {
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
         >
-          <motion.a
-            href="#"
-            className="w-full sm:w-auto px-8 py-3.5 bg-ink-main text-paper rounded-xl text-[15px] font-medium hover:bg-ink-main/90 transition shadow-[0_4px_14px_rgba(44,41,38,0.15)]"
-            whileHover={{ scale: 1.03, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            Start 14-Day Free Trial
-          </motion.a>
-          <motion.a
-            href="#"
-            className="w-full sm:w-auto px-8 py-3.5 bg-paper border border-black/10 text-ink-main rounded-xl text-[15px] font-medium hover:bg-cream transition shadow-sm"
-            whileHover={{ scale: 1.03, y: -2 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            Contact Sales
-          </motion.a>
+          <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
+            <Link
+              to="/login"
+              className="block w-full sm:w-auto px-8 py-3.5 bg-ink-main text-paper rounded-xl text-[15px] font-medium hover:bg-ink-main/90 transition shadow-[0_4px_14px_rgba(44,41,38,0.15)]"
+            >
+              Start 14-Day Free Trial
+            </Link>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }}>
+            <Link
+              to="/login"
+              className="block w-full sm:w-auto px-8 py-3.5 bg-paper border border-black/10 text-ink-main rounded-xl text-[15px] font-medium hover:bg-cream transition shadow-sm"
+            >
+              Contact Sales
+            </Link>
+          </motion.div>
         </motion.div>
       </div>
     </section>

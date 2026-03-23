@@ -87,6 +87,8 @@ export default {
     'bg-sage-main/30', 'border-sage-dark/10',
     // PatientHistoryPage valueCls
     'text-sage-dark', 'text-rose-dark',
+    // VitalInputPage recent entry accent lines
+    'border-l-sage-dark/40', 'border-l-lavender-dark/40',
     // PatientHistoryPage accentBar
     'bg-rose-dark/40', 'bg-sage-main/60',
     // PatientHistoryPage icons

@@ -59,6 +59,44 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, handleClose]);
 
+  // Focus trap
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevFocus = document.activeElement as HTMLElement;
+    // Delay until open animation completes
+    const focusTimer = setTimeout(() => {
+      const modal = modalRef.current;
+      if (!modal) return;
+      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ));
+      focusable[0]?.focus();
+    }, 500);
+
+    const trapFocus = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const modal = modalRef.current;
+      if (!modal) return;
+      const focusable = Array.from(modal.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      clearTimeout(focusTimer);
+      document.removeEventListener('keydown', trapFocus);
+      prevFocus?.focus();
+    };
+  }, [isOpen]);
+
   const handleVitals = () => {
     handleClose();
     setTimeout(() => navigate('/vitals'), 300);
@@ -90,7 +128,8 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-ivory flex items-center justify-center text-ink-muted hover:text-ink-main hover:bg-sand-light transition-all"
+            aria-label="Close"
+            className="w-8 h-8 rounded-full bg-ivory flex items-center justify-center text-ink-muted hover:text-ink-main hover:bg-sand-light transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -104,7 +143,7 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
           <button
             ref={card1Ref}
             onClick={handleVitals}
-            className="group relative text-left bg-sage-light/40 hover:bg-sage-light border border-sage-dark/15 hover:border-sage-dark/30 rounded-2xl p-5 transition-all duration-200 hover:shadow-[0_8px_24px_rgba(99,117,90,0.15)] outline-none"
+            className="group relative text-left bg-sage-light/40 hover:bg-sage-light border border-sage-dark/15 hover:border-sage-dark/30 rounded-2xl p-5 transition-all duration-200 hover:shadow-[0_8px_24px_rgba(99,117,90,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-dark/40"
             style={{ opacity: 0 }}
           >
             <div className="w-10 h-10 rounded-xl bg-sage-main/60 flex items-center justify-center text-sage-dark mb-4 group-hover:scale-110 transition-transform">
@@ -127,7 +166,7 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
           <button
             ref={card2Ref}
             onClick={() => { handleClose(); setTimeout(() => navigate('/vitals?mode=note'), 300); }}
-            className="group relative text-left bg-lavender-light/40 hover:bg-lavender-light border border-lavender-dark/15 hover:border-lavender-dark/30 rounded-2xl p-5 transition-all duration-200 hover:shadow-[0_8px_24px_rgba(106,96,138,0.15)] outline-none"
+            className="group relative text-left bg-lavender-light/40 hover:bg-lavender-light border border-lavender-dark/15 hover:border-lavender-dark/30 rounded-2xl p-5 transition-all duration-200 hover:shadow-[0_8px_24px_rgba(106,96,138,0.15)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-dark/40"
             style={{ opacity: 0 }}
           >
             <div className="w-10 h-10 rounded-xl bg-lavender-main/60 flex items-center justify-center text-lavender-dark mb-4 group-hover:scale-110 transition-transform">

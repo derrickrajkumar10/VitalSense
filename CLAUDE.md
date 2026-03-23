@@ -88,3 +88,38 @@ All custom tokens are in `tailwind.config.js`. Key rules:
 
 - GSAP `onComplete` callbacks that call `navigate()` must use block body `() => { navigate('/foo'); }` not expression body `() => navigate('/foo')` — react-router's `navigate` may return `Promise<void>` which is not assignable to GSAP's `Callback` type.
 - Context files exporting both a provider component and a hook need `/* eslint-disable react-refresh/only-export-components */` at the top.
+
+## UI Audit Results (2026-03-23)
+
+### Completed Fixes
+
+**Phase 1 — Non-functional UI elements wired up:**
+- HeroSection / CTASection / PricingSection — CTA buttons route to `/login`
+- HeroSection "View Demo" → `/dashboard`
+- PredictionsPage — "History & Trends" → `/history`, "Export Clinical Report" → `/reports`
+- CriticalAlertModal — "Call Emergency" → `tel:911`
+- LoginPage — "Forgot password?" `<a>` → `<button>` with alert
+- SignupPage — Terms/Privacy `href="#"` links have `e.preventDefault()`
+- AIInsightsPage — Mic button toggles `micActive` state with visual (rose + animate-pulse) feedback
+- ClinicalReportsPage — Share button copies URL to clipboard with "Link Copied!" feedback state
+- ClinicalChatPage — Added required API headers (`x-api-key`, `anthropic-version`, `anthropic-dangerous-direct-browser-access`)
+
+**Phase 2 — Accessibility & polish across all pages:**
+- `BodyMap.tsx` — Hotspot `<g>` elements: `role="button"`, `tabIndex={0}`, `aria-label`, `onKeyDown` Enter/Space. Zoom buttons: `aria-label` + `focus-visible:ring-2`.
+- `DashboardPage.tsx` — Traveling dot: `yoyo: true` fixes loop teleport. Dock nodes: `role="button"`, `tabIndex={0}`, `aria-label`, `onKeyDown`. New Entry button: `focus-visible` ring.
+- `QuickEntryModal.tsx` — Full focus trap (500ms delay, Tab intercept, prev-focus restore). Close button + cards: `aria-label` + `focus-visible:ring-2`.
+- `CriticalAlertModal.tsx` — Full focus trap (600ms delay). Both action buttons: `focus-visible:ring-2`.
+- `ClinicalChatPage.tsx` — Edit patient button: `aria-label`. Message bubbles: `break-words`. Mic: `aria-label`. Send: `aria-label` + focus ring. Toolbar: "Share Report" copies URL with state feedback, "Download PDF" → `/reports`. Nav buttons: `focus-visible:ring-2`.
+- `PatientHistoryPage.tsx` — "Export Data" → `/reports`, "Add Note" → `/vitals?mode=note`. Timeline type text: `truncate`. Both buttons: `focus-visible:ring-2`.
+- `VitalInputPage.tsx` — Recent entries: `border-l-2` accent lines matching dot color (sage/lavender). Timestamps: `text-ink-soft` → `text-ink-muted`. Voice mic: `aria-label` + `focus-visible:ring-2`.
+- `SignupPage.tsx` — All inputs: `aria-label`. Eye toggle buttons: `aria-label` + `focus-visible:ring-2`.
+- `LoginPage.tsx` — Eye toggle + SSO button: `outline-none` → `focus-visible:ring-2`.
+- `AIInsightsPage.tsx` — Mic: `title` → `aria-label` + `focus-visible:ring-2`. Small `text-ink-soft` chip → `text-ink-muted`.
+
+### Accessibility Patterns (apply going forward)
+- Icon-only buttons must have `aria-label`.
+- Replace bare `outline-none` with `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30` (or accent color variant).
+- SVG interactive `<g>` elements need `role="button"`, `tabIndex={0}`, `onKeyDown` Enter/Space.
+- Modals need a full focus trap: capture `document.activeElement`, delay `focus()` until after entrance animation, restore on cleanup.
+- Small text (<14px) must use `text-ink-muted` not `text-ink-soft` for contrast.
+- Chat bubbles and any long-text containers need `break-words`.

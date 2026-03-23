@@ -55,7 +55,7 @@ export default function DashboardPage() {
           gsap.to(dot, { opacity: 1, duration: 0.3, delay: 2.35 });
           const proxy = { t: 0 };
           gsap.to(proxy, {
-            t: 1, duration: 3.2, ease: 'none', repeat: -1, delay: 2.35,
+            t: 1, duration: 3.2, ease: 'none', repeat: -1, yoyo: true, delay: 2.35,
             onUpdate() {
               const pt = path.getPointAtLength(proxy.t * len);
               gsap.set(dot, { attr: { cx: pt.x, cy: pt.y } });
@@ -210,9 +210,13 @@ export default function DashboardPage() {
           {/* ── NODE 0: AI Insights ── */}
           <div
             ref={el => { itemRefs.current[0] = el; }}
-            className="flex flex-col items-center gap-1.5 px-7 py-3.5 cursor-pointer rounded-l-2xl hover:bg-ivory transition-colors duration-200"
+            role="button"
+            tabIndex={0}
+            aria-label="AI Insights"
+            className="flex flex-col items-center gap-1.5 px-7 py-3.5 cursor-pointer rounded-l-2xl hover:bg-ivory transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 focus-visible:ring-inset"
             style={{ opacity: 0 }}
             onClick={() => navigate('/insights')}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/insights'); } }}
           >
             <div className="node-chip w-8 h-8 rounded-[10px] bg-sage-light border border-sage-main/60 flex items-center justify-center">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-sage-dark">
@@ -249,7 +253,7 @@ export default function DashboardPage() {
             <button
               ref={btnRef}
               onClick={handleOpen}
-              className="node-label flex items-center gap-1.5 outline-none"
+              className="node-label flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 rounded"
             >
               <span className="font-semibold text-[10.5px] tracking-[-0.01em] text-ink-main whitespace-nowrap">
                 New Entry
@@ -266,9 +270,13 @@ export default function DashboardPage() {
           {/* ── NODE 2: Predictions ── */}
           <div
             ref={el => { itemRefs.current[2] = el; }}
-            className="flex flex-col items-center gap-1.5 px-7 py-3.5 cursor-pointer hover:bg-ivory transition-colors duration-200"
+            role="button"
+            tabIndex={0}
+            aria-label="Predictions"
+            className="flex flex-col items-center gap-1.5 px-7 py-3.5 cursor-pointer hover:bg-ivory transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 focus-visible:ring-inset"
             style={{ opacity: 0 }}
             onClick={() => navigate('/predictions')}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/predictions'); } }}
           >
             <div className="node-chip w-8 h-8 rounded-[10px] bg-lavender-light border border-lavender-main/60 flex items-center justify-center">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-lavender-dark">
@@ -286,9 +294,13 @@ export default function DashboardPage() {
           {/* ── NODE 3: Clinical Chat ── */}
           <div
             ref={el => { itemRefs.current[3] = el; }}
-            className="flex flex-col items-center gap-1.5 px-7 py-3.5 cursor-pointer rounded-r-2xl hover:bg-ivory transition-colors duration-200"
+            role="button"
+            tabIndex={0}
+            aria-label="Copilot"
+            className="flex flex-col items-center gap-1.5 px-7 py-3.5 cursor-pointer rounded-r-2xl hover:bg-ivory transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30 focus-visible:ring-inset"
             style={{ opacity: 0 }}
             onClick={() => navigate('/chat')}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/chat'); } }}
           >
             <div className="node-chip w-8 h-8 rounded-[10px] bg-sand-light border border-sand-main/60 flex items-center justify-center">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-sand-dark">

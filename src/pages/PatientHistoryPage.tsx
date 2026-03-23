@@ -303,7 +303,7 @@ export default function PatientHistoryPage() {
                           <div className="pl-5 pr-5 pt-4 pb-4 border-b border-black/5 bg-cream/20 flex justify-between items-center">
                             <div>
                               <h4 className="font-medium text-[15px] text-ink-main">{entry.date}</h4>
-                              <p className="font-mono text-[10px] text-ink-muted uppercase tracking-wider mt-0.5">{entry.type}</p>
+                              <p className="font-mono text-[10px] text-ink-muted uppercase tracking-wider mt-0.5 truncate">{entry.type}</p>
                             </div>
                             <span className="bg-sand-light/60 text-sand-dark text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded">
                               Selected
@@ -372,13 +372,13 @@ export default function PatientHistoryPage() {
               <p className="text-sm text-ink-muted">12-month trajectory of primary vital indicators.</p>
             </div>
             <div className="flex gap-2.5">
-              <button className="px-4 py-2 border border-black/10 rounded-lg text-sm font-medium text-ink-main bg-paper hover:bg-cream transition shadow-sm flex items-center gap-2">
+              <button onClick={() => navigate('/reports')} className="px-4 py-2 border border-black/10 rounded-lg text-sm font-medium text-ink-main bg-paper hover:bg-cream transition shadow-sm flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
                 Export Data
               </button>
-              <button className="px-4 py-2 bg-ink-main text-paper rounded-lg text-sm font-medium hover:bg-ink-main/90 transition shadow-sm">
+              <button onClick={() => navigate('/vitals?mode=note')} className="px-4 py-2 bg-ink-main text-paper rounded-lg text-sm font-medium hover:bg-ink-main/90 transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/40">
                 Add Note
               </button>
             </div>

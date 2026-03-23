@@ -728,8 +728,9 @@ export default function VitalInputPage() {
 
                     {/* Mic button */}
                     <button
+                      aria-label={voiceActive ? 'Stop recording' : 'Start recording'}
                       onClick={() => setVoiceActive(v => !v)}
-                      className="relative group outline-none"
+                      className="relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-dark/40 rounded-full"
                     >
                       <div
                         className={`absolute inset-0 bg-rose-light rounded-full transition-opacity duration-300 ${
@@ -871,9 +872,9 @@ export default function VitalInputPage() {
 
         <div ref={entriesRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
 
-          <div className="p-4 rounded-xl border border-black/5 bg-ivory hover:bg-cream hover:border-black/10 transition-all cursor-pointer" style={{ opacity: 0 }}>
+          <div className="p-4 rounded-xl border border-black/5 border-l-2 border-l-sage-dark/40 bg-ivory hover:bg-cream hover:border-black/10 transition-all cursor-pointer" style={{ opacity: 0 }}>
             <div className="flex justify-between items-center mb-3">
-              <span className="font-mono text-[10px] text-ink-soft">TODAY, 09:45 AM</span>
+              <span className="font-mono text-[10px] text-ink-muted">TODAY, 09:45 AM</span>
               <span className="w-2 h-2 rounded-full bg-sage-main" />
             </div>
             <div className="flex gap-4">
@@ -892,9 +893,9 @@ export default function VitalInputPage() {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl border border-black/5 bg-ivory hover:bg-cream hover:border-black/10 transition-all cursor-pointer" style={{ opacity: 0 }}>
+          <div className="p-4 rounded-xl border border-black/5 border-l-2 border-l-lavender-dark/40 bg-ivory hover:bg-cream hover:border-black/10 transition-all cursor-pointer" style={{ opacity: 0 }}>
             <div className="flex justify-between items-center mb-3">
-              <span className="font-mono text-[10px] text-ink-soft">YESTERDAY, 14:20 PM</span>
+              <span className="font-mono text-[10px] text-ink-muted">YESTERDAY, 14:20 PM</span>
               <span className="w-2 h-2 rounded-full bg-lavender-main" />
             </div>
             <div className="flex gap-4">
@@ -909,9 +910,9 @@ export default function VitalInputPage() {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl border border-black/5 bg-ivory hover:bg-cream hover:border-black/10 transition-all cursor-pointer" style={{ opacity: 0.7 }}>
+          <div className="p-4 rounded-xl border border-black/5 border-l-2 border-l-sage-dark/40 bg-ivory hover:bg-cream hover:border-black/10 transition-all cursor-pointer" style={{ opacity: 0.7 }}>
             <div className="flex justify-between items-center mb-3">
-              <span className="font-mono text-[10px] text-ink-soft">OCT 22, 08:15 AM</span>
+              <span className="font-mono text-[10px] text-ink-muted">OCT 22, 08:15 AM</span>
               <span className="w-2 h-2 rounded-full bg-sage-main" />
             </div>
             <div className="flex gap-4">

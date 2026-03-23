@@ -173,7 +173,7 @@ export default function LoginPage() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               aria-label="Toggle password visibility"
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ink-soft hover:text-ink-main transition-colors rounded-md outline-none"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-ink-soft hover:text-ink-main transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30"
             >
               <AnimatePresence mode="wait" initial={false}>
                 {showPassword ? (
@@ -255,9 +255,13 @@ export default function LoginPage() {
           </motion.button>
 
           <div className="text-center mt-2">
-            <a href="#" className="text-[13px] font-medium text-ink-muted hover:text-ink-main transition-colors">
+            <button
+              type="button"
+              onClick={() => alert('Password reset instructions will be sent to your registered email address.')}
+              className="text-[13px] font-medium text-ink-muted hover:text-ink-main transition-colors"
+            >
               Forgot password?
-            </a>
+            </button>
           </div>
         </form>
 
@@ -271,7 +275,7 @@ export default function LoginPage() {
         {/* SSO */}
         <motion.button
           type="button"
-          className="w-full py-3.5 bg-transparent border border-black/10 text-ink-main rounded-xl text-[14px] font-medium hover:bg-black/5 hover:border-black/20 transition-all flex items-center justify-center gap-3 outline-none"
+          className="w-full py-3.5 bg-transparent border border-black/10 text-ink-main rounded-xl text-[14px] font-medium hover:bg-black/5 hover:border-black/20 transition-all flex items-center justify-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-main/30"
           whileHover={{ scale: 1.01, y: -1 }}
           whileTap={{ scale: 0.99 }}
         >

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInView } from 'framer-motion';
 import { useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { pricingPlans } from '../data/mockData';
 
 const CheckIcon = () => (
@@ -100,18 +101,18 @@ export default function PricingSection() {
                 ))}
               </ul>
 
-              <motion.a
-                href="#"
-                className={`w-full py-3 rounded-xl text-sm font-medium transition text-center mt-auto ${
-                  plan.ctaStyle === 'filled'
-                    ? 'bg-ink-main text-paper hover:bg-ink-main/90 shadow-sm'
-                    : 'bg-transparent border border-black/10 text-ink-main hover:bg-black/5'
-                }`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {plan.cta}
-              </motion.a>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="mt-auto">
+                <Link
+                  to="/login"
+                  className={`block w-full py-3 rounded-xl text-sm font-medium transition text-center ${
+                    plan.ctaStyle === 'filled'
+                      ? 'bg-ink-main text-paper hover:bg-ink-main/90 shadow-sm'
+                      : 'bg-transparent border border-black/10 text-ink-main hover:bg-black/5'
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
+              </motion.div>
             </motion.div>
           ))}
         </div>
