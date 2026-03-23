@@ -51,7 +51,8 @@ function ECHOThumbnail({ color }: { color: string }) {
   );
 }
 
-export default function RightPanel({ activeHotspot }: RightPanelProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function RightPanel(_: RightPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const severityDotsRef = useRef<(HTMLDivElement | null)[]>([]);
 

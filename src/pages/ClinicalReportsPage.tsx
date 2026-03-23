@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -94,11 +96,26 @@ const RECOMMENDATIONS = [
 export default function ClinicalReportsPage() {
   const navigate = useNavigate();
   const [score, setScore] = useState(0);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const gaugeRef   = useRef<SVGPathElement>(null);
   const ecgRef     = useRef<SVGPathElement>(null);
   const barRefs    = useRef<(HTMLDivElement | null)[]>([]);
   const mainRef    = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPDF = async () => {
+    if (!mainRef.current || pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      const canvas = await html2canvas(mainRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      pdf.save('VitalSense-Report-Eleanor-Vance.pdf');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -189,7 +206,7 @@ export default function ClinicalReportsPage() {
             <p className="text-sm text-ink-muted">Eleanor Vance • Generated Oct 25, 2023 at 08:42 AM PST</p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="px-5 py-2.5 border border-black/10 bg-paper rounded-xl text-sm font-medium text-ink-main hover:bg-cream transition flex items-center gap-2 shadow-sm">
+            <button onClick={() => window.print()} className="px-5 py-2.5 border border-black/10 bg-paper rounded-xl text-sm font-medium text-ink-main hover:bg-cream transition flex items-center gap-2 shadow-sm">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="6 9 6 2 18 2 18 9"/>
                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -205,13 +222,13 @@ export default function ClinicalReportsPage() {
               </svg>
               Share
             </button>
-            <button className="px-6 py-2.5 bg-ink-main text-paper rounded-xl text-sm font-medium hover:bg-ink-main/90 transition shadow-[0_4px_14px_rgba(44,41,38,0.2)] flex items-center gap-2">
+            <button onClick={handleDownloadPDF} disabled={pdfLoading} className="px-6 py-2.5 bg-ink-main text-paper rounded-xl text-sm font-medium hover:bg-ink-main/90 transition shadow-[0_4px_14px_rgba(44,41,38,0.2)] flex items-center gap-2 disabled:opacity-60">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
-              Download PDF
+              {pdfLoading ? 'Generating…' : 'Download PDF'}
             </button>
           </div>
         </header>

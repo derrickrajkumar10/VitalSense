@@ -29,17 +29,6 @@ export default function LoginPage() {
     return () => { tl.kill(); tl2.kill(); };
   }, []);
 
-  const shakeCard = () => {
-    gsap.fromTo(
-      cardRef.current,
-      { x: 0 },
-      {
-        x: [-6, 6, -5, 5, -3, 3, 0],
-        duration: 0.5,
-        ease: 'none',
-      }
-    );
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,14 +46,8 @@ export default function LoginPage() {
       y: -30,
       duration: 0.6,
       ease: 'vitalize',
-      onComplete: () => navigate('/dashboard'),
+      onComplete: () => { navigate('/dashboard'); },
     });
-  };
-
-  const handleError = () => {
-    setStatus('error');
-    shakeCard();
-    setTimeout(() => setStatus('idle'), 2000);
   };
 
   return (

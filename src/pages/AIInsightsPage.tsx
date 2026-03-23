@@ -3,9 +3,8 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-const HEALTH_SCORE = 78;
+import { useVitals } from '../context/VitalsContext';
+import { computePrediction } from '../lib/predictionEngine';
 
 const POP_BARS = [
   { label: 'Heart Rate Efficiency',   pct: 78, percentile: '78th Percentile', barCls: 'bg-sage-main',  textCls: 'text-sage-dark',  hasMarker: false },
@@ -55,6 +54,9 @@ const ACTION_STEPS = [
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AIInsightsPage() {
   const navigate = useNavigate();
+  const prediction = computePrediction(useVitals().submittedVitals);
+  const HEALTH_SCORE = prediction.riskScore;
+
   const [loading, setLoading] = useState(true);
   const [score,   setScore]   = useState(0);
 
@@ -126,6 +128,7 @@ export default function AIInsightsPage() {
         onUpdate: () => setScore(Math.round(proxy.val)),
       });
 
+
       // Chart path draw
       if (chartPathRef.current) {
         const len = chartPathRef.current.getTotalLength();
@@ -196,7 +199,7 @@ export default function AIInsightsPage() {
       });
     });
     return () => ctx.revert();
-  }, [loading]);
+  }, [loading, HEALTH_SCORE]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -393,7 +396,7 @@ export default function AIInsightsPage() {
                 <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Top Risk Factor</h3>
               </div>
               <div>
-                <h4 className="font-serif text-[22px] text-ink-main leading-tight mb-2">Hypertension Exacerbation</h4>
+                <h4 className="font-serif text-[22px] text-ink-main leading-tight mb-2">{prediction.topCondition}</h4>
                 <p className="text-sm text-ink-muted leading-relaxed">
                   Algorithmic analysis flags a pattern of elevated systolic readings consistently occurring during evening hours (18:00 – 22:00).
                 </p>

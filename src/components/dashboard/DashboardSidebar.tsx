@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from '../../lib/gsap';
 import VitalCard from './VitalCard';
+import CriticalAlertModal, { type AlertData } from '../CriticalAlertModal';
 import {
   patient,
   vitals,
@@ -27,6 +28,7 @@ export default function DashboardSidebar() {
   const emergencyRef = useRef<HTMLDivElement>(null);
   const liveDotRef = useRef<HTMLDivElement>(null);
   const [liveHr, setLiveHr] = useState(72);
+  const [showEmergency, setShowEmergency] = useState(false);
 
   useEffect(() => {
     // Stagger entrance animations
@@ -252,6 +254,7 @@ export default function DashboardSidebar() {
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
+          onClick={() => setShowEmergency(true)}
           className="w-full bg-rose-dark text-white rounded-2xl py-3.5 flex items-center justify-center gap-3 font-bold text-sm shadow-[0_4px_20px_rgba(138,75,75,0.4)] hover:shadow-[0_6px_28px_rgba(138,75,75,0.5)] transition-shadow duration-300"
         >
           <span className="emergency-icon text-xl leading-none" style={{ transformOrigin: 'center' }}>
@@ -260,6 +263,18 @@ export default function DashboardSidebar() {
           <span className="tracking-wide">Emergency Alert</span>
         </motion.button>
       </div>
+
+      {showEmergency && (
+        <CriticalAlertModal
+          data={{
+            condition: 'Emergency Alert Triggered',
+            chipText: 'Manual Alert — Clinician Activated',
+            thresholdText: 'Immediate Review Required',
+            description: 'A manual emergency alert has been triggered by the attending clinician. Immediate review of all patient vitals and on-call physician notification is required.',
+          } as AlertData}
+          onDismiss={() => setShowEmergency(false)}
+        />
+      )}
     </div>
   );
 }

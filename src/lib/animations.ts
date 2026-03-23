@@ -48,19 +48,21 @@ export const slideInRight = (el: Element | string, delay = 0) =>
   );
 
 // Page transition variants for Framer Motion
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
 export const pageVariants = {
   initial: { opacity: 0, y: 24, filter: 'blur(4px)' },
   enter: {
     opacity: 1,
     y: 0,
     filter: 'blur(0px)',
-    transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.65, ease: EASE },
   },
   exit: {
     opacity: 0,
     y: -16,
     filter: 'blur(4px)',
-    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.4, ease: EASE },
   },
 };
 
@@ -72,7 +74,7 @@ export const containerVariants = {
 
 export const itemVariants = {
   hidden: { opacity: 0, y: 32 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.75, ease: EASE } },
 };
 
 export const cardVariants = {
@@ -81,6 +83,6 @@ export const cardVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.7, ease: EASE },
   },
 };

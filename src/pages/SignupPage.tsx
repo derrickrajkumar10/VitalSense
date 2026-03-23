@@ -90,7 +90,7 @@ export default function SignupPage() {
     await new Promise((r) => setTimeout(r, 1200));
     gsap.to(cardRef.current, {
       opacity: 0, scale: 0.96, y: -30, duration: 0.6, ease: 'vitalize',
-      onComplete: () => navigate('/login'),
+      onComplete: () => { navigate('/login'); },
     });
   };
 

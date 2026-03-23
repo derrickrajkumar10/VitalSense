@@ -29,6 +29,7 @@ const statusConfig = {
 export default function VitalCard({ vital, index }: VitalCardProps) {
   const valueRef = useRef<HTMLSpanElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const prevValueRef = useRef<number>(vital.value);
   const config = statusConfig[vital.status];
 
   useEffect(() => {
@@ -43,8 +44,9 @@ export default function VitalCard({ vital, index }: VitalCardProps) {
         { opacity: 1, y: 0, duration: 0.7, delay, ease: 'vitalize-soft' }
       );
     } else {
-      // Counter animation
-      const obj = { val: 0 };
+      // Counter animation — from previous value to new value (no flash)
+      const fromVal = prevValueRef.current;
+      const obj = { val: fromVal };
       gsap.to(obj, {
         val: vital.value,
         duration: 1.4,
@@ -54,6 +56,9 @@ export default function VitalCard({ vital, index }: VitalCardProps) {
           if (valueRef.current) {
             valueRef.current.textContent = Math.round(obj.val).toString();
           }
+        },
+        onComplete: () => {
+          prevValueRef.current = Math.round(obj.val);
         },
       });
     }
@@ -78,7 +83,7 @@ export default function VitalCard({ vital, index }: VitalCardProps) {
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-bold text-ink-main font-mono" ref={valueRef}>
-          {vital.id === 'bp' ? vital.displayValue : '0'}
+          {vital.id === 'bp' ? vital.displayValue : String(vital.value)}
         </span>
         <span className="text-[10px] text-ink-soft font-medium">{vital.unit}</span>
       </div>

@@ -108,17 +108,18 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // ── ⌘K shortcut ──────────────────────────────────────────────────────────────
+  // ── ⌘K / Ctrl+K shortcut (platform-aware) ────────────────────────────────────
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setQuickEntryOpen(v => !v);
       }
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
-  }, []);
+  }, [isMac]);
 
   const handleOpen = () => {
     if (!btnRef.current) { setQuickEntryOpen(true); return; }
@@ -254,7 +255,7 @@ export default function DashboardPage() {
                 New Entry
               </span>
               <kbd className="font-mono text-[8.5px] text-ink-soft bg-sand-light/60 border border-sand-main/40 rounded-[3px] px-1.5 py-[3px] leading-none select-none">
-                ⌘K
+                {isMac ? '⌘K' : 'Ctrl+K'}
               </kbd>
             </button>
           </div>

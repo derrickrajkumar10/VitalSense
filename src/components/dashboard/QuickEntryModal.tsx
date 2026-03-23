@@ -13,17 +13,12 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
   const modalRef     = useRef<HTMLDivElement>(null);
   const card1Ref     = useRef<HTMLButtonElement>(null);
   const card2Ref     = useRef<HTMLButtonElement>(null);
-  const [visible, setVisible] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const visible = isOpen || closing;
 
   // Open animation
   useEffect(() => {
-    if (isOpen) {
-      setVisible(true);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!visible) return;
+    if (!isOpen) return;
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: 'vitalize' } });
       tl.fromTo(backdropRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3 })
@@ -37,12 +32,13 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
         );
     });
     return () => ctx.revert();
-  }, [visible]);
+  }, [isOpen]);
 
   // Close animation
   const handleClose = useCallback(() => {
+    setClosing(true);
     const tl = gsap.timeline({
-      onComplete: () => { setVisible(false); onClose(); },
+      onComplete: () => { setClosing(false); onClose(); },
     });
     tl.to([card1Ref.current, card2Ref.current],
       { opacity: 0, y: 10, scale: 0.97, duration: 0.2, stagger: 0.05, ease: 'vitalize-sharp' }
@@ -130,7 +126,7 @@ export default function QuickEntryModal({ isOpen, onClose }: Props) {
           {/* Clinical Note */}
           <button
             ref={card2Ref}
-            onClick={handleClose}
+            onClick={() => { handleClose(); setTimeout(() => navigate('/vitals?mode=note'), 300); }}
             className="group relative text-left bg-lavender-light/40 hover:bg-lavender-light border border-lavender-dark/15 hover:border-lavender-dark/30 rounded-2xl p-5 transition-all duration-200 hover:shadow-[0_8px_24px_rgba(106,96,138,0.15)] outline-none"
             style={{ opacity: 0 }}
           >

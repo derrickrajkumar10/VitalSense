@@ -3,35 +3,55 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
+import { useVitals } from '../context/VitalsContext';
+import { computePrediction } from '../lib/predictionEngine';
 
-// ── Data ─────────────────────────────────────────────────────────────────────
-const CONDITIONS = [
-  { label: 'Arrhythmia',                pct: 78, ci: '72–84%', barCls: 'bg-rose-dark/80',    textCls: 'text-rose-dark',   borderCls: 'border-rose-dark/20',  span: 1 },
-  { label: 'Hypertension Exacerbation', pct: 62, ci: '55–68%', barCls: 'bg-amber-main',      textCls: 'text-amber-dark',  borderCls: 'border-amber-dark/20', span: 1 },
-  { label: 'Tachycardia',              pct: 45, ci: '38–51%', barCls: 'bg-ink-soft/50',     textCls: 'text-ink-main',    borderCls: 'border-black/5',       span: 1 },
-  { label: 'Hypoxia Event',            pct: 12, ci: '8–15%',  barCls: 'bg-sage-main',       textCls: 'text-ink-main',    borderCls: 'border-black/5',       span: 1 },
-  { label: 'Bradycardia',              pct:  5, ci: '2–8%',   barCls: 'bg-sage-dark/60',    textCls: 'text-ink-main',    borderCls: 'border-black/5',       span: 2 },
-] as const;
+// Gauge constant
+const GAUGE_TOTAL = 283;   // ≈ π × 90 (half-circle circumference)
 
-const SHAP_RIGHT = [
-  { label: 'HR Variability', pct: 38, value: '+22%', barCls: 'bg-rose-main/90',  labelCls: 'text-rose-dark'    },
-  { label: 'Heart Rate',     pct: 25, value: '+15%', barCls: 'bg-amber-main/90', labelCls: 'text-amber-dark'   },
-  { label: 'Stress Index',   pct: 18, value: '+10%', barCls: 'bg-rose-light',    labelCls: 'text-rose-dark'    },
-] as const;
+// Bar style helpers for conditions
+const barStyleForIndex = (i: number) => ({
+  barCls:    i === 0 ? 'bg-rose-dark/80'    : i === 1 ? 'bg-amber-main'    : 'bg-ink-soft/50',
+  textCls:   i === 0 ? 'text-rose-dark'     : i === 1 ? 'text-amber-dark'  : 'text-ink-main',
+  borderCls: i === 0 ? 'border-rose-dark/20': i === 1 ? 'border-amber-dark/20' : 'border-black/5',
+});
 
-const SHAP_LEFT = [
-  { label: 'Blood Pressure', pct: 14, value: '-5%',  barCls: 'bg-lavender-main/80', labelCls: 'text-lavender-dark' },
-  { label: 'SpO2 Level',     pct: 20, value: '-8%',  barCls: 'bg-sage-main/80',     labelCls: 'text-sage-dark'    },
-] as const;
-
-// Gauge constants
-const GAUGE_TOTAL  = 283;   // ≈ π × 90 (half-circle circumference)
-const GAUGE_SCORE  = 78;
-const GAUGE_OFFSET = +(GAUGE_TOTAL * (1 - GAUGE_SCORE / 100)).toFixed(2); // 62.26
+// SHAP color styles by position
+const SHAP_RIGHT_STYLES = [
+  { barCls: 'bg-rose-main/90',  labelCls: 'text-rose-dark'  },
+  { barCls: 'bg-amber-main/90', labelCls: 'text-amber-dark' },
+  { barCls: 'bg-rose-light',    labelCls: 'text-rose-dark'  },
+];
+const SHAP_LEFT_STYLES = [
+  { barCls: 'bg-lavender-main/80', labelCls: 'text-lavender-dark' },
+  { barCls: 'bg-sage-main/80',     labelCls: 'text-sage-dark'     },
+];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PredictionsPage() {
   const navigate = useNavigate();
+  const { submittedVitals } = useVitals();
+  const prediction = computePrediction(submittedVitals);
+
+  // Derived from prediction
+  const CONDITIONS = prediction.conditions.map((c, i) => ({
+    ...c,
+    ...barStyleForIndex(i),
+    span: (i === prediction.conditions.length - 1 ? 2 : 1) as 1 | 2,
+  }));
+  const shapPos = prediction.shapValues.filter(s => s.dir === 'pos');
+  const shapNeg = prediction.shapValues.filter(s => s.dir === 'neg');
+  const SHAP_RIGHT = shapPos.slice(0, 3).map((s, i) => ({
+    label: s.label, pct: s.pct, value: s.display,
+    ...SHAP_RIGHT_STYLES[i] ?? SHAP_RIGHT_STYLES[2],
+  }));
+  const SHAP_LEFT = shapNeg.slice(0, 2).map((s, i) => ({
+    label: s.label, pct: s.pct, value: s.display,
+    ...SHAP_LEFT_STYLES[i] ?? SHAP_LEFT_STYLES[1],
+  }));
+  const GAUGE_SCORE  = prediction.riskScore;
+  const GAUGE_OFFSET = +(GAUGE_TOTAL * (1 - GAUGE_SCORE / 100)).toFixed(2);
+
   const [loading,  setLoading]  = useState(true);
   const [score,    setScore]    = useState(0);
 
@@ -117,7 +137,7 @@ export default function PredictionsPage() {
       condBarRefs.current.forEach((bar, i) => {
         if (!bar) return;
         gsap.fromTo(bar, { width: '0%' }, {
-          width: `${CONDITIONS[i].pct}%`,
+          width: `${CONDITIONS[i]?.pct ?? 0}%`,
           duration: 1.7, delay: 0.65 + i * 0.09, ease: 'vitalize-soft',
         });
       });
@@ -126,7 +146,7 @@ export default function PredictionsPage() {
       shapRightRefs.current.forEach((bar, i) => {
         if (!bar) return;
         gsap.fromTo(bar, { width: '0%' }, {
-          width: `${SHAP_RIGHT[i].pct}%`,
+          width: `${SHAP_RIGHT[i]?.pct ?? 0}%`,
           duration: 1.4, delay: 0.75 + i * 0.1, ease: 'vitalize',
         });
       });
@@ -135,14 +155,14 @@ export default function PredictionsPage() {
       shapLeftRefs.current.forEach((bar, i) => {
         if (!bar) return;
         gsap.fromTo(bar, { width: '0%' }, {
-          width: `${SHAP_LEFT[i].pct}%`,
+          width: `${SHAP_LEFT[i]?.pct ?? 0}%`,
           duration: 1.4, delay: 0.75 + i * 0.1, ease: 'vitalize',
         });
       });
     });
 
     return () => ctx.revert();
-  }, [loading]);
+  }, [loading, prediction.riskScore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (

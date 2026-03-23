@@ -4,9 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
 
-const TYPING_TEXT =
-  'Currently, there are no immediate signs of ischemia. Stroke volume appears stable during the brief arrhythmic events. However, given her age and mild hypertension, I recommend scheduling a formal 12-lead ECG and considering a 14-day Holter monitor to quantify the ectopic burden.';
-
 const VITALS_GRID = [
   { label: 'Heart Rate',      value: '72',     unit: 'bpm',   color: 'text-ink-main'      },
   { label: 'Blood Pressure',  value: '135/85', unit: 'mmHg',  color: 'text-lavender-dark' },
@@ -16,11 +13,17 @@ const VITALS_GRID = [
   { label: 'ECG / HRV',       value: '42',     unit: 'ms',    color: 'text-rose-dark'     },
 ];
 
+type Message = { role: 'user' | 'assistant'; content: string };
+
 export default function ClinicalChatPage() {
   const navigate = useNavigate();
-  const [typedWords, setTypedWords] = useState(0);
-  const [showCursor, setShowCursor] = useState(true);
   const [score, setScore] = useState(0);
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'assistant', content: "I've completed the preliminary analysis of Eleanor's recent telemetry data. The algorithm has detected a high-confidence pattern indicative of early-stage Paroxysmal Atrial Fibrillation. This correlates directly with her recent complaints of occasional nocturnal palpitations." },
+    { role: 'user',      content: "Are there any immediate ischemic signs or concerning drops in stroke volume during these episodes?" },
+  ]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading]   = useState(false);
 
   const chatScrollRef  = useRef<HTMLDivElement>(null);
   const gaugeRef       = useRef<SVGPathElement>(null);
@@ -32,34 +35,38 @@ export default function ClinicalChatPage() {
   const bubble3Ref     = useRef<HTMLDivElement>(null);
   const reportRef      = useRef<HTMLDivElement>(null);
 
-  const WORDS = TYPING_TEXT.split(' ');
-  const displayText = WORDS.slice(0, typedWords).join(' ');
-
-  // ── Typing animation ──────────────────────────────────────────────────────
+  // Auto-scroll on new messages
   useEffect(() => {
-    let wordIdx = 0;
-    let activeTimeout: ReturnType<typeof setTimeout>;
+    chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, isLoading]);
 
-    const scheduleNext = () => {
-      if (wordIdx >= WORDS.length) {
-        setShowCursor(false);
-        return;
-      }
-      wordIdx++;
-      setTypedWords(wordIdx);
-      activeTimeout = setTimeout(scheduleNext, 42 + Math.random() * 58);
-    };
-
-    activeTimeout = setTimeout(scheduleNext, 1100);
-    return () => clearTimeout(activeTimeout);
-  }, []); // eslint-disable-line
-
-  // Auto-scroll chat on new word
-  useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+  const sendMessage = async () => {
+    if (!inputValue.trim() || isLoading) return;
+    const userMsg: Message = { role: 'user', content: inputValue.trim() };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInputValue('');
+    setIsLoading(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 300,
+          system: 'You are VitalSense AI, a clinical decision support assistant. Patient: Eleanor Vance, 45F, MRN 849-291-B. Vitals: HR 72bpm, BP 135/85mmHg, SpO2 99%, Temp 36.8°C, Resp 14br/m, HRV 42ms. Primary concern: mild irregular cardiac rhythm, possible paroxysmal atrial fibrillation. Respond as a clinical AI — concise, medically accurate, under 80 words.',
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text ?? 'Unable to process request.';
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: "I'm unable to process that request right now. Please try again." }]);
+    } finally {
+      setIsLoading(false);
     }
-  }, [typedWords]);
+  };
 
   // ── GSAP entrance + gauge + ECG ───────────────────────────────────────────
   useEffect(() => {
@@ -254,59 +261,64 @@ export default function ClinicalChatPage() {
             ref={chatScrollRef}
             className="flex-1 overflow-y-auto p-6 flex flex-col gap-6"
           >
-            {/* AI message 1 */}
-            <div ref={bubble1Ref} className="flex items-start gap-4" style={{ opacity: 0 }}>
-              <div className="w-8 h-8 rounded-full bg-paper border border-black/5 flex items-center justify-center text-ink-main shrink-0 shadow-sm mt-1">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                </svg>
-              </div>
-              <div className="flex flex-col gap-1 max-w-[85%]">
-                <span className="text-[11px] font-medium text-ink-muted ml-1">VitalSense AI</span>
-                <div className="bg-paper border border-black/5 p-4 rounded-2xl rounded-tl-sm" style={{ boxShadow: '0 2px 8px rgba(44,41,38,0.02), 0 1px 2px rgba(44,41,38,0.02)' }}>
-                  <p className="text-[14px] leading-relaxed text-ink-main">
-                    I've completed the preliminary analysis of Eleanor's recent telemetry data.
-                    The algorithm has detected a high-confidence pattern indicative of early-stage{' '}
-                    <span className="font-medium bg-rose-light/40 px-1 rounded text-rose-dark">
-                      Paroxysmal Atrial Fibrillation
-                    </span>
-                    . This correlates directly with her recent complaints of occasional nocturnal palpitations.
-                  </p>
+            {messages.map((msg, i) =>
+              msg.role === 'assistant' ? (
+                <div
+                  key={i}
+                  ref={i === 0 ? bubble1Ref : undefined}
+                  className="flex items-start gap-4"
+                  style={{ opacity: i === 0 ? 0 : 1 }}
+                >
+                  <div className="w-8 h-8 rounded-full bg-paper border border-black/5 flex items-center justify-center text-ink-main shrink-0 shadow-sm mt-1">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                  </div>
+                  <div className="flex flex-col gap-1 max-w-[85%]">
+                    <span className="text-[11px] font-medium text-ink-muted ml-1">VitalSense AI</span>
+                    <div className="bg-paper border border-black/5 p-4 rounded-2xl rounded-tl-sm" style={{ boxShadow: '0 2px 8px rgba(44,41,38,0.02), 0 1px 2px rgba(44,41,38,0.02)' }}>
+                      <p className="text-[14px] leading-relaxed text-ink-main">{msg.content}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              ) : (
+                <div
+                  key={i}
+                  ref={i === 1 ? bubble2Ref : undefined}
+                  className="flex items-start justify-end gap-4"
+                  style={{ opacity: i === 1 ? 0 : 1 }}
+                >
+                  <div className="flex flex-col gap-1 max-w-[85%] items-end">
+                    <span className="text-[11px] font-medium text-ink-muted mr-1">Dr. Thorne</span>
+                    <div className="bg-sand-light/50 border border-sand-dark/10 p-4 rounded-2xl rounded-tr-sm" style={{ boxShadow: '0 2px 8px rgba(44,41,38,0.02), 0 1px 2px rgba(44,41,38,0.02)' }}>
+                      <p className="text-[14px] leading-relaxed text-ink-main">{msg.content}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
 
-            {/* Doctor message */}
-            <div ref={bubble2Ref} className="flex items-start justify-end gap-4" style={{ opacity: 0 }}>
-              <div className="flex flex-col gap-1 max-w-[85%] items-end">
-                <span className="text-[11px] font-medium text-ink-muted mr-1">Dr. Thorne</span>
-                <div className="bg-sand-light/50 border border-sand-dark/10 p-4 rounded-2xl rounded-tr-sm" style={{ boxShadow: '0 2px 8px rgba(44,41,38,0.02), 0 1px 2px rgba(44,41,38,0.02)' }}>
-                  <p className="text-[14px] leading-relaxed text-ink-main">
-                    Are there any immediate ischemic signs or concerning drops in stroke volume during these episodes?
-                  </p>
+            {isLoading && (
+              <div ref={bubble3Ref} className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-paper border border-black/5 flex items-center justify-center text-ink-main shrink-0 shadow-sm mt-1">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                  </svg>
+                </div>
+                <div className="flex flex-col gap-1 max-w-[85%]">
+                  <span className="text-[11px] font-medium text-ink-muted ml-1">VitalSense AI</span>
+                  <div className="bg-paper border border-black/5 p-4 rounded-2xl rounded-tl-sm" style={{ boxShadow: '0 2px 8px rgba(44,41,38,0.02), 0 1px 2px rgba(44,41,38,0.02)' }}>
+                    <p className="text-[14px] leading-relaxed text-ink-main min-h-[1.5em]">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-ink-soft animate-pulse" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-ink-soft animate-pulse [animation-delay:0.2s]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-ink-soft animate-pulse [animation-delay:0.4s]" />
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* AI message 2 — typing */}
-            <div ref={bubble3Ref} className="flex items-start gap-4" style={{ opacity: 0 }}>
-              <div className="w-8 h-8 rounded-full bg-paper border border-black/5 flex items-center justify-center text-ink-main shrink-0 shadow-sm mt-1">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                </svg>
-              </div>
-              <div className="flex flex-col gap-1 max-w-[85%]">
-                <span className="text-[11px] font-medium text-ink-muted ml-1">VitalSense AI</span>
-                <div className="bg-paper border border-black/5 p-4 rounded-2xl rounded-tl-sm" style={{ boxShadow: '0 2px 8px rgba(44,41,38,0.02), 0 1px 2px rgba(44,41,38,0.02)' }}>
-                  <p className="text-[14px] leading-relaxed text-ink-main min-h-[1.5em]">
-                    {displayText}
-                    {showCursor && (
-                      <span className="chat-cursor inline-block w-[5px] h-[15px] bg-ink-soft ml-0.5 align-middle rounded-sm" />
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
+            )}
 
             <div className="h-4" />
           </div>
@@ -325,8 +337,11 @@ export default function ClinicalChatPage() {
                 type="text"
                 placeholder="Ask about this patient's vitals or findings..."
                 className="flex-1 bg-transparent border-none outline-none px-3 text-sm text-ink-main placeholder:text-ink-soft"
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) sendMessage(); }}
               />
-              <button className="w-10 h-10 rounded-full bg-ink-main text-paper flex items-center justify-center hover:bg-ink-main/90 transition shadow-sm shrink-0">
+              <button onClick={sendMessage} className="w-10 h-10 rounded-full bg-ink-main text-paper flex items-center justify-center hover:bg-ink-main/90 transition shadow-sm shrink-0">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13"/>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"/>

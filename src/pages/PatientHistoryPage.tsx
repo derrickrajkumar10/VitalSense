@@ -18,14 +18,24 @@ const TIMELINE = [
   ]},
 ];
 
-const SELECTED_VITALS = [
-  { label: 'Heart Rate',    value: '78',      unit: 'bpm',   color: 'bg-sage-light/40',    text: 'text-sage-dark',    icon: <path d="M22 12h-4l-3 9L9 3l-3 9H2"/> },
-  { label: 'Blood Pressure',value: '132/88',  unit: 'mmHg',  color: 'bg-lavender-light/40',text: 'text-lavender-dark',icon: <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/> },
-  { label: 'SpO2',          value: '98',      unit: '%',     color: 'bg-ink-soft/10',      text: 'text-ink-main',     icon: <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/> },
-  { label: 'Temperature',   value: '36.8',    unit: '°C',    color: 'bg-sand-light/40',    text: 'text-sand-dark',    icon: <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/> },
-  { label: 'Resp Rate',     value: '16',      unit: 'br/m',  color: 'bg-sage-light/40',    text: 'text-sage-dark',    icon: <><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></> },
-  { label: 'ECG / HRV',    value: '42',      unit: 'ms',    color: 'bg-lavender-light/40',text: 'text-lavender-dark',icon: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/> },
+type VitalEntry = { label: string; value: string; unit: string; color: string; text: string; icon: React.ReactNode };
+const makeVitals = (hr: string, bp: string, spo2: string, temp: string, resp: string, hrv: string): VitalEntry[] => [
+  { label: 'Heart Rate',    value: hr,   unit: 'bpm',   color: 'bg-sage-light/40',    text: 'text-sage-dark',    icon: <path d="M22 12h-4l-3 9L9 3l-3 9H2"/> },
+  { label: 'Blood Pressure',value: bp,   unit: 'mmHg',  color: 'bg-lavender-light/40',text: 'text-lavender-dark',icon: <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/> },
+  { label: 'SpO2',          value: spo2, unit: '%',     color: 'bg-ink-soft/10',      text: 'text-ink-main',     icon: <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/> },
+  { label: 'Temperature',   value: temp, unit: '°C',    color: 'bg-sand-light/40',    text: 'text-sand-dark',    icon: <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/> },
+  { label: 'Resp Rate',     value: resp, unit: 'br/m',  color: 'bg-sage-light/40',    text: 'text-sage-dark',    icon: <><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></> },
+  { label: 'ECG / HRV',    value: hrv,  unit: 'ms',    color: 'bg-lavender-light/40',text: 'text-lavender-dark',icon: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/> },
 ];
+
+const ENTRY_VITALS: Record<string, VitalEntry[]> = {
+  'January 12':   makeVitals('71', '128/82', '99', '36.6', '14', '55'),
+  'December 05':  makeVitals('74', '130/84', '98', '36.7', '15', '49'),
+  'October 24':   makeVitals('78', '132/88', '98', '36.8', '16', '42'),
+  'September 18': makeVitals('80', '134/86', '97', '36.9', '17', '40'),
+  'July 02':      makeVitals('76', '126/80', '99', '36.5', '14', '58'),
+  'April 15':     makeVitals('82', '138/90', '96', '37.1', '18', '36'),
+};
 
 const TREND_CARDS = [
   {
@@ -74,10 +84,29 @@ const TREND_CARDS = [
   },
 ];
 
-// Chart paths
-const PATH_SPO2 = 'M0 60 L 100 58 L 200 62 L 300 55 L 400 65 L 500 60 L 600 58 L 700 64 L 800 55 L 900 60 L 1000 58';
-const PATH_BP   = 'M0 120 C 150 110, 200 180, 350 140 S 450 90, 550 120 S 700 170, 850 110 S 950 140, 1000 130';
-const PATH_HR   = 'M0 200 C 100 190, 150 250, 250 220 S 400 180, 500 240 S 650 190, 750 230 S 900 180, 1000 210';
+// Chart paths per range
+const CHART_PATHS: Record<string, { spo2: string; bp: string; hr: string }> = {
+  '1M': {
+    spo2: 'M0 58 L 200 60 L 400 56 L 600 62 L 800 58 L 1000 60',
+    bp:   'M0 110 C 200 105, 350 125, 500 115 S 700 105, 1000 110',
+    hr:   'M0 210 C 150 205, 300 225, 500 215 S 750 205, 1000 210',
+  },
+  '3M': {
+    spo2: 'M0 62 L 150 58 L 300 64 L 500 55 L 700 62 L 900 58 L 1000 60',
+    bp:   'M0 115 C 150 108, 300 135, 450 120 S 600 100, 750 125 S 900 110, 1000 118',
+    hr:   'M0 205 C 100 195, 250 230, 400 215 S 600 200, 800 225 S 950 200, 1000 208',
+  },
+  '1Y': {
+    spo2: 'M0 60 L 100 58 L 200 62 L 300 55 L 400 65 L 500 60 L 600 58 L 700 64 L 800 55 L 900 60 L 1000 58',
+    bp:   'M0 120 C 150 110, 200 180, 350 140 S 450 90, 550 120 S 700 170, 850 110 S 950 140, 1000 130',
+    hr:   'M0 200 C 100 190, 150 250, 250 220 S 400 180, 500 240 S 650 190, 750 230 S 900 180, 1000 210',
+  },
+  'ALL': {
+    spo2: 'M0 65 L 100 60 L 200 70 L 350 52 L 500 68 L 650 55 L 800 65 L 900 58 L 1000 62',
+    bp:   'M0 130 C 100 125, 250 195, 400 155 S 500 85, 620 125 S 750 185, 880 115 S 970 145, 1000 135',
+    hr:   'M0 195 C 100 185, 200 255, 320 225 S 450 175, 560 245 S 680 185, 800 235 S 930 175, 1000 205',
+  },
+};
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PatientHistoryPage() {
@@ -137,6 +166,30 @@ export default function PatientHistoryPage() {
     });
     return () => ctx.revert();
   }, []);
+
+  // Animate chart path swap on range change
+  useEffect(() => {
+    const paths = CHART_PATHS[activeRange];
+    const targets = [
+      [chartHRRef,   paths.hr  ],
+      [chartBPRef,   paths.bp  ],
+      [chartSpO2Ref, paths.spo2],
+    ] as [React.RefObject<SVGPathElement>, string][];
+
+    targets.forEach(([ref, d]) => {
+      const el = ref.current;
+      if (!el) return;
+      gsap.to(el, {
+        opacity: 0, duration: 0.18, ease: 'power1.in',
+        onComplete: () => {
+          el.setAttribute('d', d);
+          const len = el.getTotalLength();
+          gsap.set(el, { strokeDasharray: len, strokeDashoffset: len });
+          gsap.to(el, { strokeDashoffset: 0, opacity: 1, duration: 1.2, ease: 'vitalize-soft' });
+        },
+      });
+    });
+  }, [activeRange]);
 
   const StatusIcon = ({ dir }: { dir: string }) =>
     dir === 'right' ? (
@@ -258,7 +311,7 @@ export default function PatientHistoryPage() {
                           </div>
 
                           <div className="p-4 grid grid-cols-2 gap-3">
-                            {SELECTED_VITALS.map(v => (
+                            {(ENTRY_VITALS[selectedEntry] ?? ENTRY_VITALS['October 24']).map(v => (
                               <div key={v.label} className="flex items-start gap-2.5">
                                 <div className={`w-7 h-7 rounded ${v.color} flex items-center justify-center ${v.text} shrink-0`}>
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -398,14 +451,14 @@ export default function PatientHistoryPage() {
                 ))}
 
                 {/* Chart bg halos (readability) */}
-                <path d={PATH_SPO2} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d={PATH_BP}   fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d={PATH_HR}   fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d={CHART_PATHS['1Y'].spo2} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d={CHART_PATHS['1Y'].bp}   fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d={CHART_PATHS['1Y'].hr}   fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
 
                 {/* Actual chart lines */}
-                <path ref={chartSpO2Ref} d={PATH_SPO2} fill="none" stroke="#DBCBB9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path ref={chartBPRef}   d={PATH_BP}   fill="none" stroke="#6A608A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path ref={chartHRRef}   d={PATH_HR}   fill="none" stroke="#63755A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path ref={chartSpO2Ref} d={CHART_PATHS['1Y'].spo2} fill="none" stroke="#DBCBB9" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path ref={chartBPRef}   d={CHART_PATHS['1Y'].bp}   fill="none" stroke="#6A608A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path ref={chartHRRef}   d={CHART_PATHS['1Y'].hr}   fill="none" stroke="#63755A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
 
                 {/* Anomaly pulse dots */}
                 <g transform="translate(540,115)">

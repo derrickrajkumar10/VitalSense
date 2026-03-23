@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { pageVariants } from '../lib/animations';
 import { gsap } from '../lib/gsap';
 import CriticalAlertModal from '../components/CriticalAlertModal';
 import type { AlertData } from '../components/CriticalAlertModal';
+import { useVitals } from '../context/VitalsContext';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'manual' | 'voice' | 'csv' | 'pdf';
@@ -246,6 +247,8 @@ const ALERT_THRESHOLDS: Record<string, Threshold[]> = {
 // ── Component ────────────────────────────────────────────────────────────────
 export default function VitalInputPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { submitVitals } = useVitals();
 
   const [activeTab, setActiveTab]   = useState<TabId>('manual');
   const [values, setValues]         = useState<VitalValues>({ hr: '', bp: '', spo2: '', temp: '', resp: '', hrv: '' });
@@ -254,6 +257,12 @@ export default function VitalInputPage() {
   const [voiceActive, setVoiceActive]   = useState(false);
   const [alertData, setAlertData]       = useState<AlertData | null>(null);
   const [showAlert, setShowAlert]       = useState(false);
+  const [csvFileName, setCsvFileName]   = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName]   = useState<string | null>(null);
+
+  // File input refs
+  const csvInputRef  = useRef<HTMLInputElement>(null);
+  const pdfInputRef  = useRef<HTMLInputElement>(null);
 
   // Page-level refs
   const headerRef       = useRef<HTMLDivElement>(null);
@@ -307,6 +316,14 @@ export default function VitalInputPage() {
     });
 
     return () => ctx.revert();
+  }, []);
+
+  // ── Switch to voice tab if mode=note ──────────────────────────────────────
+  useEffect(() => {
+    if (searchParams.get('mode') === 'note') {
+      setActiveTab('voice');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Tab switch — set invisible before paint ────────────────────────────────
@@ -373,7 +390,7 @@ export default function VitalInputPage() {
     const tl = gsap.timeline({ repeat: -1 });
     tl.fromTo(els, { top: '-5%', opacity: 0 }, { top: '108%', opacity: 1, duration: 2.4, ease: 'none' })
       .to(els, { opacity: 0, duration: 0.12 }, '-=0.12');
-    return () => tl.kill();
+    return () => { tl.kill(); };
   }, [activeTab]);
 
   // ── Card focus micro-interaction ───────────────────────────────────────────
@@ -438,7 +455,6 @@ export default function VitalInputPage() {
         }));
       },
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values]);
 
   const loadPreset = useCallback((profile: ProfileKey, btn?: EventTarget & HTMLButtonElement) => {
@@ -453,7 +469,6 @@ export default function VitalInputPage() {
     } else {
       animateToPreset(preset);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, switchTab, animateToPreset]);
 
   const checkCriticalThreshold = useCallback((field: keyof VitalValues, raw: string) => {
@@ -488,7 +503,6 @@ export default function VitalInputPage() {
     } else {
       dismissToast();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function showToast(message: string) {
@@ -674,6 +688,18 @@ export default function VitalInputPage() {
                     ref={submitBtnRef}
                     onMouseEnter={() => onSubmitHover(true)}
                     onMouseLeave={() => onSubmitHover(false)}
+                    onClick={() => {
+                      if (!values.hr || !values.bp || !values.spo2) {
+                        showToast('Please fill in at least Heart Rate, Blood Pressure, and SpO2 before submitting.');
+                        return;
+                      }
+                      submitVitals(values as unknown as Record<string, string>);
+                      if (submitBtnRef.current) {
+                        gsap.to(submitBtnRef.current, { backgroundColor: '#63755A', duration: 0.2 });
+                        submitBtnRef.current.innerHTML = '<span>Saved ✓</span>';
+                        setTimeout(() => navigate('/predictions'), 1500);
+                      }
+                    }}
                     className="w-full bg-ink-main text-paper py-4 rounded-xl font-medium text-sm shadow-[0_4px_14px_rgba(44,41,38,0.2)] flex items-center justify-center gap-2 mt-auto"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -742,8 +768,18 @@ export default function VitalInputPage() {
               {/* ══ CSV TAB ══════════════════════════════════════════════════ */}
               {activeTab === 'csv' && (
                 <div className="flex flex-col w-full min-h-[380px]">
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={e => { if (e.target.files?.[0]) setCsvFileName(e.target.files[0].name); }}
+                  />
                   <div className="flex-1 flex items-center justify-center w-full">
-                    <div className="w-full min-h-[340px] border-2 border-dashed border-ink-soft/30 rounded-2xl bg-paper/50 flex flex-col items-center justify-center gap-4 hover:bg-paper hover:border-ink-soft/60 transition-all cursor-pointer group">
+                    <div
+                      onClick={() => csvInputRef.current?.click()}
+                      className="w-full min-h-[340px] border-2 border-dashed border-ink-soft/30 rounded-2xl bg-paper/50 flex flex-col items-center justify-center gap-4 hover:bg-paper hover:border-ink-soft/60 transition-all cursor-pointer group"
+                    >
                       <div className="w-16 h-16 rounded-full bg-ivory flex items-center justify-center text-ink-muted group-hover:scale-110 transition-transform shadow-sm">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -754,7 +790,10 @@ export default function VitalInputPage() {
                       </div>
                       <div className="text-center">
                         <h3 className="font-medium text-ink-main text-lg mb-1">Upload CSV Data</h3>
-                        <p className="text-sm text-ink-muted">Drag &amp; drop your file here, or click to browse</p>
+                        {csvFileName
+                          ? <p className="text-sm text-sage-dark font-medium">{csvFileName}</p>
+                          : <p className="text-sm text-ink-muted">Drag &amp; drop your file here, or click to browse</p>
+                        }
                       </div>
                       <span className="font-mono text-[10px] uppercase tracking-widest text-ink-soft mt-2 bg-ivory px-2 py-1 rounded">
                         Supported format: .csv
@@ -767,8 +806,18 @@ export default function VitalInputPage() {
               {/* ══ PDF TAB ══════════════════════════════════════════════════ */}
               {activeTab === 'pdf' && (
                 <div className="flex flex-col w-full min-h-[380px]">
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={e => { if (e.target.files?.[0]) setPdfFileName(e.target.files[0].name); }}
+                  />
                   <div className="flex-1 flex items-center justify-center w-full">
-                    <div className="w-full min-h-[340px] border-2 border-dashed border-lavender-dark/30 rounded-2xl bg-paper/50 flex flex-col items-center justify-center gap-4 relative overflow-hidden cursor-pointer">
+                    <div
+                      onClick={() => pdfInputRef.current?.click()}
+                      className="w-full min-h-[340px] border-2 border-dashed border-lavender-dark/30 rounded-2xl bg-paper/50 flex flex-col items-center justify-center gap-4 relative overflow-hidden cursor-pointer"
+                    >
 
                       {/* Scanning glow beam */}
                       <div
@@ -794,7 +843,10 @@ export default function VitalInputPage() {
                       </div>
                       <div className="text-center relative z-10">
                         <h3 className="font-medium text-ink-main text-lg mb-1">Scan PDF Report</h3>
-                        <p className="text-sm text-ink-muted">VitalSense OCR will extract metrics automatically</p>
+                        {pdfFileName
+                          ? <p className="text-sm text-lavender-dark font-medium">{pdfFileName}</p>
+                          : <p className="text-sm text-ink-muted">VitalSense OCR will extract metrics automatically</p>
+                        }
                       </div>
                     </div>
                   </div>

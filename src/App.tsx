@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import './index.css';
 
@@ -18,6 +18,22 @@ import ClinicalReportsPage from './pages/ClinicalReportsPage';
 // Global UI
 import CursorGlow from './components/CursorGlow';
 
+function NotFound() {
+  const navigate = useNavigate();
+  return (
+    <div className="bg-ivory min-h-screen flex flex-col items-center justify-center gap-4">
+      <h1 className="font-serif text-4xl text-ink-main tracking-tight">Page not found</h1>
+      <p className="text-sm text-ink-muted">The page you're looking for doesn't exist.</p>
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="mt-2 px-5 py-2.5 bg-ink-main text-paper rounded-xl text-sm font-medium hover:bg-ink-main/90 transition"
+      >
+        ← Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -29,20 +45,24 @@ function ScrollToTop() {
 function AnimatedRoutes() {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/vitals" element={<VitalInputPage />} />
-        <Route path="/predictions" element={<PredictionsPage />} />
-        <Route path="/insights" element={<AIInsightsPage />} />
-        <Route path="/history" element={<PatientHistoryPage />} />
-        <Route path="/chat" element={<ClinicalChatPage />} />
-        <Route path="/reports" element={<ClinicalReportsPage />} />
-      </Routes>
-    </AnimatePresence>
+    <>
+      <ScrollToTop />
+      <AnimatePresence mode="wait" initial={false}>
+        <Routes location={location} key={location.pathname}>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/vitals" element={<VitalInputPage />} />
+          <Route path="/predictions" element={<PredictionsPage />} />
+          <Route path="/insights" element={<AIInsightsPage />} />
+          <Route path="/history" element={<PatientHistoryPage />} />
+          <Route path="/chat" element={<ClinicalChatPage />} />
+          <Route path="/reports" element={<ClinicalReportsPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -50,7 +70,6 @@ function AppInner() {
   return (
     <div className="bg-ivory text-ink-main w-full min-h-screen overflow-x-hidden">
       <CursorGlow />
-      <ScrollToTop />
       <AnimatedRoutes />
     </div>
   );

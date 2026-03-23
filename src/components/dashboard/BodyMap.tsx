@@ -138,8 +138,10 @@ export default function BodyMap({ activeTab, onTabChange, activeHotspot, onHotsp
       });
     }
 
+    const connector = connectorRef.current;
+    const bodyPath = bodyPathRef.current;
     return () => {
-      gsap.killTweensOf([heartPulse, heartPulse2, connectorRef.current, bodyPathRef.current]);
+      gsap.killTweensOf([heartPulse, heartPulse2, connector, bodyPath]);
     };
   }, []);
 
