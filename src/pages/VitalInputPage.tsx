@@ -8,10 +8,11 @@ import type { AlertData } from '../components/CriticalAlertModal';
 import { useVitals } from '../context/VitalsContext';
 import { usePredictionStore } from '../store/predictionStore';
 import { predictVitals, streamNarrative, parsePDF, voiceToVitals, storeHistory } from '../lib/api';
+import ECGAnalysisTab from '../components/vitals/ECGAnalysisTab';
 import { DEMO_CRITICAL_VITALS, DEMO_NORMAL_VITALS, DEMO_BORDERLINE_VITALS } from '../data/demoResult';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-type TabId = 'manual' | 'voice' | 'csv' | 'pdf';
+type TabId = 'manual' | 'voice' | 'csv' | 'pdf' | 'ecg';
 type ProfileKey = 'healthy' | 'prediabetic' | 'cardiac';
 
 interface VitalValues {
@@ -41,6 +42,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'voice',  label: 'Voice Input'  },
   { id: 'csv',    label: 'CSV Upload'   },
   { id: 'pdf',    label: 'PDF Upload'   },
+  { id: 'ecg',    label: 'ECG Analysis' },
 ];
 
 // ── Vital card definitions ──────────────────────────────────────────────────
@@ -1069,6 +1071,13 @@ export default function VitalInputPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* ══ ECG TAB ═══════════════════════════════════════════════ */}
+              {activeTab === 'ecg' && (
+                <div className="w-full">
+                  <ECGAnalysisTab />
                 </div>
               )}
 

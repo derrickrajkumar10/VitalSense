@@ -139,3 +139,65 @@ export async function getRecommendations(vitals: object, conditions: object[], s
   if (!res.ok) return null
   return res.json() as Promise<Array<{ label: string; badge: string; type: 'urgent' | 'moderate' | 'routine' }>>
 }
+
+// ── ECG Analysis types ────────────────────────────────────────────────────────
+export interface EcgDemo {
+  ecg_id: number
+  superclass: string
+  label: string
+  age: number
+  sex: string
+  description: string
+}
+
+export interface EcgSignalData {
+  ecg_id: number
+  lead_names: string[]
+  signals: number[][]  // [12 leads][1000 samples]
+  fs: number
+}
+
+export interface EcgFinding {
+  class: string
+  label: string
+  probability: number
+}
+
+export interface EcgPredictionResult {
+  ecg_findings: EcgFinding[]
+  primary_finding: EcgFinding
+  model: string
+  macro_auc: number
+  inference_time_ms: number
+}
+
+// ── ECG API functions ─────────────────────────────────────────────────────────
+export async function fetchEcgDemos(): Promise<EcgDemo[]> {
+  const res = await fetch(`${BASE_URL}/ecg/demos`)
+  if (!res.ok) throw new Error('Failed to load demo records')
+  const data = await res.json()
+  return data.demos
+}
+
+export async function fetchEcgDemoSignal(ecgId: number): Promise<EcgSignalData> {
+  const res = await fetch(`${BASE_URL}/ecg/demo/${ecgId}/signal`)
+  if (!res.ok) throw new Error('Failed to load ECG signal')
+  return res.json()
+}
+
+export async function runEcgDemoPredict(ecgId: number): Promise<EcgPredictionResult> {
+  const res = await fetch(`${BASE_URL}/ecg/demo/${ecgId}/predict`)
+  if (!res.ok) throw new Error('ECG prediction failed')
+  return res.json()
+}
+
+export async function runEcgFilePredict(file: File): Promise<EcgPredictionResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${BASE_URL}/predict/ecg`, { method: 'POST', body: form })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'ECG prediction failed' }))
+    throw new Error(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail))
+  }
+  return res.json()
+}

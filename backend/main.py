@@ -21,6 +21,7 @@ _state: dict[str, Any] = {
     "ecg_model_ready": False,
     "gemini_connected": False,
     "medgemma_loaded": False,
+    "demos_loaded": False,
 }
 
 
@@ -48,6 +49,21 @@ async def lifespan(app: FastAPI):
             print(f"✗ ECG model failed: {e}")
     else:
         print("⚠ ECG model not found — /predict/ecg will return 503")
+
+    # ── Load ECG demo records ─────────────────────────────────────────────
+    try:
+        from ml.ecg_demos import _load_demos, DEMO_RECORDS
+        ptbxl_dir = os.path.join(os.path.dirname(__file__), "data", "ptbxl")
+        if os.path.exists(ptbxl_dir):
+            _load_demos(ptbxl_dir)
+            _state["demos_loaded"] = len(DEMO_RECORDS) > 0
+            print(f"✓ ECG demos loaded: {list(DEMO_RECORDS.keys())}")
+        else:
+            print("⚠ PTB-XL data not found — demo endpoints will return 503")
+            _state["demos_loaded"] = False
+    except Exception as e:
+        print(f"✗ ECG demos failed: {e}")
+        _state["demos_loaded"] = False
 
     # ── Connect OpenAI ────────────────────────────────────────────────────
     openai_key = os.environ.get("OPENAI_API_KEY", "")
@@ -353,3 +369,42 @@ async def get_history(patient_id: str, limit: int = 20, offset: int = 0):
     records = _patient_history.get(patient_id, [])
     sliced = records[offset: offset + limit]
     return {"patient_id": patient_id, "records": sliced, "total": len(records)}
+
+
+# ── /ecg/demos ────────────────────────────────────────────────────────────────
+@app.get("/ecg/demos")
+async def ecg_demos():
+    if not _state.get("demos_loaded"):
+        raise HTTPException(status_code=503, detail={"error": "Demo records not available", "detail": "PTB-XL dataset not found."})
+    from ml.ecg_demos import get_demo_list
+    return {"demos": get_demo_list()}
+
+
+# ── /ecg/demo/{ecg_id}/signal ─────────────────────────────────────────────────
+@app.get("/ecg/demo/{ecg_id}/signal")
+async def ecg_demo_signal(ecg_id: int):
+    if not _state.get("demos_loaded"):
+        raise HTTPException(status_code=503, detail={"error": "Demo records not available"})
+    try:
+        from ml.ecg_demos import get_demo_signal
+        return get_demo_signal(ecg_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail={"error": "ECG record not found", "detail": f"No demo record with id {ecg_id}"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": "Signal loading failed", "detail": str(e)})
+
+
+# ── /ecg/demo/{ecg_id}/predict ────────────────────────────────────────────────
+@app.get("/ecg/demo/{ecg_id}/predict")
+async def ecg_demo_predict(ecg_id: int):
+    if not _state.get("ecg_model_ready"):
+        raise HTTPException(status_code=503, detail={"error": "ECG model not loaded"})
+    if not _state.get("demos_loaded"):
+        raise HTTPException(status_code=503, detail={"error": "Demo records not available"})
+    try:
+        from ml.ecg_demos import get_demo_prediction
+        return get_demo_prediction(ecg_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail={"error": "ECG record not found"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": "Prediction failed", "detail": str(e)})
