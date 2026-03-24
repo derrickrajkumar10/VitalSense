@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+
+const MotionLink = motion.create(Link);
 import HeroDashboard from './HeroDashboard';
 
 const container = {
@@ -37,16 +39,7 @@ export default function HeroSection() {
         animate="show"
         className="max-w-[800px] mx-auto text-center mb-20"
       >
-        <motion.div variants={item} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-paper border border-black/5 shadow-sm mb-6">
-          <motion.span
-            className="w-2 h-2 rounded-full bg-sage-main"
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-          <span className="font-mono text-[10px] uppercase tracking-widest text-ink-muted">VitalSense OS 2.0 Now Available</span>
-        </motion.div>
-
-        <motion.h1 variants={item} className="font-serif text-6xl md:text-7xl text-ink-main tracking-tight leading-[1.1] mb-6">
+<motion.h1 variants={item} className="font-serif text-6xl md:text-7xl text-ink-main tracking-tight leading-[1.1] mb-6">
           Clinical intelligence,<br />beautifully refined.
         </motion.h1>
 
@@ -55,33 +48,27 @@ export default function HeroSection() {
         </motion.p>
 
         <motion.div variants={item} className="flex items-center justify-center gap-4">
-          <motion.div
+          <MotionLink
+            to="/login"
+            className="px-8 py-3.5 bg-ink-main text-paper rounded-xl text-[15px] font-medium shadow-[0_4px_14px_rgba(44,41,38,0.15)] flex items-center gap-2"
             whileHover={{ scale: 1.03, y: -2, boxShadow: '0 8px 24px rgba(44,41,38,0.2)' }}
             whileTap={{ scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 400 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 22 }}
           >
-            <Link
-              to="/login"
-              className="px-8 py-3.5 bg-ink-main text-paper rounded-xl text-[15px] font-medium transition shadow-[0_4px_14px_rgba(44,41,38,0.15)] flex items-center gap-2"
-            >
-              Get Started Free
-            </Link>
-          </motion.div>
-          <motion.div
-            whileHover={{ scale: 1.03, y: -2, backgroundColor: 'rgba(255,255,255,0.9)' }}
+            Get Started Free
+          </MotionLink>
+          <MotionLink
+            to="/dashboard"
+            className="px-8 py-3.5 bg-paper border border-black/10 text-ink-main rounded-xl text-[15px] font-medium flex items-center gap-2"
+            whileHover={{ scale: 1.03, y: -2, boxShadow: '0 8px 24px rgba(44,41,38,0.08)' }}
             whileTap={{ scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 400 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 22 }}
           >
-            <Link
-              to="/dashboard"
-              className="px-8 py-3.5 bg-transparent border border-black/10 text-ink-main rounded-xl text-[15px] font-medium flex items-center gap-2"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              View Demo
-            </Link>
-          </motion.div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            View Demo
+          </MotionLink>
         </motion.div>
       </motion.div>
 

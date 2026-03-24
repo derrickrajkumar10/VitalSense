@@ -6,7 +6,7 @@ import Navbar from '../components/Navbar';
 import HeroSection from '../components/HeroSection';
 import TrustBar from '../components/TrustBar';
 import FeaturesSection from '../components/FeaturesSection';
-import HowItWorks from '../components/HowItWorks';
+import WorkflowSection from '../components/WorkflowSection';
 import Testimonials from '../components/Testimonials';
 import PricingSection from '../components/PricingSection';
 import FAQSection from '../components/FAQSection';
@@ -33,7 +33,7 @@ export default function LandingPage() {
       <HeroSection />
       <TrustBar />
       <FeaturesSection />
-      <HowItWorks />
+      <WorkflowSection />
       <Testimonials />
       <PricingSection />
       <FAQSection />

@@ -21,6 +21,11 @@ export function initSmoothScroll() {
 
   gsap.ticker.lagSmoothing(0);
 
+  // Refresh all ScrollTriggers after Lenis is wired up.
+  // HeroSection (child) creates its triggers before this parent effect runs,
+  // so we need one more refresh here to ensure correct scroll positions.
+  requestAnimationFrame(() => ScrollTrigger.refresh());
+
   return lenis;
 }
 

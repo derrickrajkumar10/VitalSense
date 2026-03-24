@@ -17,8 +17,6 @@ export default function DashboardPage() {
   const dockWrapRef  = useRef<HTMLDivElement>(null);
   const dockRef      = useRef<HTMLDivElement>(null);
   const itemRefs     = useRef<(HTMLDivElement | null)[]>([]);
-  const filamentRef  = useRef<SVGPathElement>(null);
-  const travelDotRef = useRef<SVGCircleElement>(null);
   const btnRef       = useRef<HTMLButtonElement>(null);
 
   // ── Entrance + idle + filament ────────────────────────────────────────────────
@@ -41,28 +39,7 @@ export default function DashboardPage() {
         y: -3, duration: 2.8, ease: 'sine.inOut', yoyo: true, repeat: -1, delay: 1.6,
       });
 
-      // Filament draw
-      const path = filamentRef.current;
-      if (path) {
-        const len = path.getTotalLength();
-        gsap.set(path, { strokeDasharray: `0 ${len}` });
-        gsap.to(path, { strokeDasharray: `${len} 0`, duration: 1.0, delay: 1.25, ease: 'vitalize-soft' });
 
-        // Traveling dot
-        const dot = travelDotRef.current;
-        if (dot) {
-          gsap.set(dot, { opacity: 0 });
-          gsap.to(dot, { opacity: 1, duration: 0.3, delay: 2.35 });
-          const proxy = { t: 0 };
-          gsap.to(proxy, {
-            t: 1, duration: 3.2, ease: 'none', repeat: -1, yoyo: true, delay: 2.35,
-            onUpdate() {
-              const pt = path.getPointAtLength(proxy.t * len);
-              gsap.set(dot, { attr: { cx: pt.x, cy: pt.y } });
-            },
-          });
-        }
-      }
     });
     return () => ctx.revert();
   }, []);
@@ -161,45 +138,6 @@ export default function DashboardPage() {
         className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center"
         style={{ opacity: 0 }}
       >
-        {/* SVG filament — arcs above the dock (4 nodes) */}
-        <svg
-          viewBox="0 0 440 28"
-          className="w-[440px] h-7 pointer-events-none"
-          overflow="visible"
-        >
-          <defs>
-            <linearGradient id="fil-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#63755A" stopOpacity="0.35"/>
-              <stop offset="33%"  stopColor="#A69F95" stopOpacity="0.3"/>
-              <stop offset="66%"  stopColor="#A69F95" stopOpacity="0.3"/>
-              <stop offset="100%" stopColor="#6A608A" stopOpacity="0.35"/>
-            </linearGradient>
-            <filter id="dot-blur" x="-200%" y="-200%" width="500%" height="500%">
-              <feGaussianBlur stdDeviation="1.8" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
-          <circle cx="52"  cy="26" r="2" fill="#63755A" opacity="0.35"/>
-          <circle cx="165" cy="26" r="2" fill="#A69F95" opacity="0.3"/>
-          <circle cx="278" cy="26" r="2" fill="#A69F95" opacity="0.3"/>
-          <circle cx="391" cy="26" r="2" fill="#6A608A" opacity="0.35"/>
-          <path
-            ref={filamentRef}
-            d="M 52 26 C 66 5, 151 5, 165 26 C 179 5, 264 5, 278 26 C 292 5, 377 5, 391 26"
-            fill="none"
-            stroke="url(#fil-grad)"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-          />
-          <circle
-            ref={travelDotRef}
-            cx="52" cy="26" r="2.5"
-            fill="#A69F95"
-            opacity="0"
-            filter="url(#dot-blur)"
-          />
-        </svg>
-
         {/* Dock — paper card, matches the design system */}
         <div
           ref={dockRef}

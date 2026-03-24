@@ -1,7 +1,17 @@
-import { motion } from 'framer-motion';
-import { useInView } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { useRef } from 'react';
-import { trustLogos } from '../data/mockData';
+import { InfiniteSlider } from '@/components/ui/infinite-slider';
+
+const clinicalPartners = [
+  'Mount Sinai',
+  'Cleveland Clinic',
+  'Mayo Clinic',
+  'Johns Hopkins',
+  'Mass General',
+  'NYP Hospital',
+  'UCLA Health',
+  'Stanford Medicine',
+];
 
 export default function TrustBar() {
   const ref = useRef(null);
@@ -11,32 +21,40 @@ export default function TrustBar() {
     <section className="py-16 border-y border-black/5 bg-cream/50">
       <div className="max-w-[1200px] mx-auto px-8 flex flex-col items-center" ref={ref}>
         <motion.p
-          className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-8 text-center"
+          className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-5 text-center"
           initial={{ opacity: 0, y: 16 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
         >
           Trusted by leading clinical teams
         </motion.p>
+
+        <div className="mx-auto mb-5 h-px w-64 bg-black/[0.06] [mask-image:linear-gradient(to_right,transparent,black,transparent)]" />
+
         <motion.div
-          className="flex flex-wrap justify-center gap-12 md:gap-20 opacity-60 grayscale"
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 0.6, y: 0 } : {}}
-          transition={{ duration: 0.8, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full"
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : {}}
+          transition={{ duration: 0.8, delay: 0.2 }}
         >
-          {trustLogos.map((logo, i) => (
-            <motion.span
-              key={logo}
-              className={`font-serif text-xl font-medium ${i === 4 ? 'hidden md:block' : ''}`}
-              initial={{ opacity: 0 }}
-              animate={inView ? { opacity: 1 } : {}}
-              transition={{ delay: 0.2 + i * 0.08, duration: 0.5 }}
-              whileHover={{ opacity: 1, filter: 'grayscale(0)' }}
-            >
-              {logo}
-            </motion.span>
-          ))}
+          <InfiniteSlider
+            gap={64}
+            speed={40}
+            speedOnHover={15}
+            className="[mask-image:linear-gradient(to_right,transparent,black,transparent)]"
+          >
+            {clinicalPartners.map((name) => (
+              <span
+                key={name}
+                className="font-serif text-xl font-medium text-ink-main whitespace-nowrap select-none"
+              >
+                {name}
+              </span>
+            ))}
+          </InfiniteSlider>
         </motion.div>
+
+        <div className="mt-5 h-px w-full max-w-sm bg-black/[0.06] [mask-image:linear-gradient(to_right,transparent,black,transparent)]" />
       </div>
     </section>
   );

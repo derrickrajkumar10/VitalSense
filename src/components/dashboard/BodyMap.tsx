@@ -1,7 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { tabs } from '../../data/dashboardData';
-import LiveECG from './LiveECG';
 
 // Lazy-load the heavy Three.js canvas so it doesn't block initial render
 const Body3DScene = lazy(() => import('./Body3DScene'));
@@ -72,12 +71,6 @@ export default function BodyMap({
               overlaySuppressed={overlaySuppressed}
             />
           </Suspense>
-        </div>
-
-        {/* ECG strip — bottom */}
-        <div className="absolute bottom-12 left-4 right-4 opacity-60 pointer-events-none">
-          <div className="text-[9px] text-lavender-dark font-mono mb-1 tracking-wider">LEAD II — CONTINUOUS</div>
-          <LiveECG color="#6A608A" height={44} />
         </div>
 
         {/* Drag-to-rotate hint */}
