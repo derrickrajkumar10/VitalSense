@@ -18,6 +18,11 @@ import ClinicalReportsPage from './pages/ClinicalReportsPage';
 // Global UI
 import CursorGlow from './components/CursorGlow';
 
+// Backend health + demo fallback
+import { checkHealth } from './lib/api';
+import { usePredictionStore } from './store/predictionStore';
+import { DEMO_CRITICAL_RESULT, DEMO_CRITICAL_NARRATIVE, DEMO_CRITICAL_VITALS_TYPED } from './data/demoResult';
+
 function NotFound() {
   const navigate = useNavigate();
   return (
@@ -67,6 +72,22 @@ function AnimatedRoutes() {
 }
 
 function AppInner() {
+  const { setBackendAvailable, setPredictions, setNarrative, setLastVitals } = usePredictionStore();
+
+  useEffect(() => {
+    checkHealth()
+      .then(() => {
+        setBackendAvailable(true);
+      })
+      .catch(() => {
+        setBackendAvailable(false);
+        setPredictions(DEMO_CRITICAL_RESULT);
+        setLastVitals(DEMO_CRITICAL_VITALS_TYPED);
+        setNarrative(DEMO_CRITICAL_NARRATIVE);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="bg-ivory text-ink-main w-full min-h-screen overflow-x-hidden">
       <CursorGlow />

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
+import { usePredictionStore } from '../store/predictionStore';
+import { streamChat } from '../lib/api';
 
 const VITALS_GRID = [
   { label: 'Heart Rate',      value: '72',     unit: 'bpm',   color: 'text-ink-main'      },
@@ -17,10 +19,12 @@ type Message = { role: 'user' | 'assistant'; content: string };
 
 export default function ClinicalChatPage() {
   const navigate = useNavigate();
+  const { result: apiResult, narrative, lastVitals } = usePredictionStore();
+
+  const TARGET_SCORE = apiResult ? Math.round(apiResult.overall_risk_score * 100) : 78;
   const [score, setScore] = useState(0);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "I've completed the preliminary analysis of Eleanor's recent telemetry data. The algorithm has detected a high-confidence pattern indicative of early-stage Paroxysmal Atrial Fibrillation. This correlates directly with her recent complaints of occasional nocturnal palpitations." },
-    { role: 'user',      content: "Are there any immediate ischemic signs or concerning drops in stroke volume during these episodes?" },
+    { role: 'assistant', content: "Hi there, welcome to VitalSense AI. I'm your clinical copilot — ask me anything about this patient's vitals, findings, or report." },
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading]   = useState(false);
@@ -48,7 +52,6 @@ export default function ClinicalChatPage() {
   const leftPanelRef   = useRef<HTMLElement>(null);
   const rightPanelRef  = useRef<HTMLElement>(null);
   const bubble1Ref     = useRef<HTMLDivElement>(null);
-  const bubble2Ref     = useRef<HTMLDivElement>(null);
   const bubble3Ref     = useRef<HTMLDivElement>(null);
   const reportRef      = useRef<HTMLDivElement>(null);
 
@@ -64,27 +67,37 @@ export default function ClinicalChatPage() {
     setMessages(newMessages);
     setInputValue('');
     setIsLoading(true);
+
+    // Append empty assistant bubble for streaming
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY ?? '',
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 300,
-          system: 'You are VitalSense AI, a clinical decision support assistant. Patient: Eleanor Vance, 45F, MRN 849-291-B. Vitals: HR 72bpm, BP 135/85mmHg, SpO2 99%, Temp 36.8°C, Resp 14br/m, HRV 42ms. Primary concern: mild irregular cardiac rhythm, possible paroxysmal atrial fibrillation. Respond as a clinical AI — concise, medically accurate, under 80 words.',
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
-      });
-      const data = await res.json();
-      const reply = data.content?.[0]?.text ?? 'Unable to process request.';
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+      const vitalsCtx = lastVitals ?? {};
+      const predCtx = {
+        ...(apiResult ? {
+          primary_condition: apiResult.primary_condition?.name,
+          overall_risk_score: apiResult.overall_risk_score,
+        } : {}),
+        ...(narrative ? { clinical_summary: narrative } : {}),
+      };
+
+      let assistantText = '';
+      for await (const token of streamChat(
+        newMessages.map(m => ({ role: m.role, content: m.content })),
+        vitalsCtx,
+        predCtx,
+      )) {
+        assistantText += token;
+        setMessages(prev => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: assistantText },
+        ]);
+      }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: "I'm unable to process that request right now. Please try again." }]);
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: "I'm unable to connect to the AI assistant. Please check that the backend is running." },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -105,11 +118,11 @@ export default function ClinicalChatPage() {
         '-=0.45'
       );
 
-      // Chat bubbles stagger
+      // Animate initial assistant bubble in
       tl.fromTo(
-        [bubble1Ref.current, bubble2Ref.current, bubble3Ref.current],
+        bubble1Ref.current,
         { y: 14, opacity: 0 },
-        { y: 0, opacity: 1, stagger: 0.18, duration: 0.5, ease: 'vitalize-soft' },
+        { y: 0, opacity: 1, duration: 0.5, ease: 'vitalize-soft' },
         '-=0.25'
       );
 
@@ -123,26 +136,6 @@ export default function ClinicalChatPage() {
         );
       }
 
-      // Gauge arc draw
-      if (gaugeRef.current) {
-        gsap.set(gaugeRef.current, { strokeDasharray: 283, strokeDashoffset: 283 });
-        gsap.to(gaugeRef.current, {
-          strokeDashoffset: 62.26,
-          duration: 1.85,
-          delay: 0.9,
-          ease: 'vitalize-soft',
-        });
-      }
-
-      // Score counter 0 → 78
-      const proxy = { val: 0 };
-      gsap.to(proxy, {
-        val: 78,
-        duration: 1.65,
-        delay: 0.9,
-        ease: 'vitalize-soft',
-        onUpdate() { setScore(Math.round(proxy.val)); },
-      });
 
       // ECG path draw
       if (ecgPathRef.current) {
@@ -161,6 +154,28 @@ export default function ClinicalChatPage() {
     });
     return () => ctx.revert();
   }, []);
+
+  // Gauge + score counter — re-runs when risk score changes
+  useEffect(() => {
+    if (!gaugeRef.current) return;
+    const gaugeTarget = 283 * (1 - TARGET_SCORE / 100);
+    gsap.set(gaugeRef.current, { strokeDasharray: 283, strokeDashoffset: 283 });
+    const tween1 = gsap.to(gaugeRef.current, {
+      strokeDashoffset: gaugeTarget,
+      duration: 1.85,
+      delay: 0.4,
+      ease: 'vitalize-soft',
+    });
+    const proxy = { val: 0 };
+    const tween2 = gsap.to(proxy, {
+      val: TARGET_SCORE,
+      duration: 1.65,
+      delay: 0.4,
+      ease: 'vitalize-soft',
+      onUpdate() { setScore(Math.round(proxy.val)); },
+    });
+    return () => { tween1.kill(); tween2.kill(); };
+  }, [TARGET_SCORE]);
 
   return (
     <motion.div
@@ -249,31 +264,34 @@ export default function ClinicalChatPage() {
               </button>
             </div>
 
-            {/* Vitals chips */}
+            {/* Vitals chips — real values from store */}
             <div className="flex flex-wrap gap-2">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sage-light/60 border border-sage-dark/10 text-sage-dark">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
-                <span className="font-medium text-xs">72 <span className="font-mono text-[9px] opacity-70">BPM</span></span>
+                <span className="font-medium text-xs">{lastVitals?.hr ?? 72} <span className="font-mono text-[9px] opacity-70">BPM</span></span>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-lavender-light/60 border border-lavender-dark/10 text-lavender-dark">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
                 </svg>
-                <span className="font-medium text-xs">135/85 <span className="font-mono text-[9px] opacity-70">MMHG</span></span>
+                <span className="font-medium text-xs">
+                  {lastVitals ? `${Math.round(lastVitals.bp_systolic)}/${Math.round(lastVitals.bp_diastolic)}` : '135/85'}{' '}
+                  <span className="font-mono text-[9px] opacity-70">MMHG</span>
+                </span>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sand-light border border-sand-dark/10 text-sand-dark">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
                 </svg>
-                <span className="font-medium text-xs">99 <span className="font-mono text-[9px] opacity-70">%</span></span>
+                <span className="font-medium text-xs">{lastVitals?.spo2 ?? 99} <span className="font-mono text-[9px] opacity-70">%</span></span>
               </div>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-light/60 border border-rose-dark/10 text-rose-dark">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
                 </svg>
-                <span className="font-medium text-xs">36.8 <span className="font-mono text-[9px] opacity-70">°C</span></span>
+                <span className="font-medium text-xs">{lastVitals?.temp ?? 36.8} <span className="font-mono text-[9px] opacity-70">°C</span></span>
               </div>
             </div>
           </div>
@@ -306,9 +324,7 @@ export default function ClinicalChatPage() {
               ) : (
                 <div
                   key={i}
-                  ref={i === 1 ? bubble2Ref : undefined}
                   className="flex items-start justify-end gap-4"
-                  style={{ opacity: i === 1 ? 0 : 1 }}
                 >
                   <div className="flex flex-col gap-1 max-w-[85%] items-end">
                     <span className="text-[11px] font-medium text-ink-muted mr-1">Dr. Thorne</span>
@@ -433,10 +449,7 @@ export default function ClinicalChatPage() {
               <div className="report-section bg-ivory/50 rounded-lg p-6 border-l-2 border-ink-soft" style={{ opacity: 0 }}>
                 <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-3">AI Clinical Synthesis</h3>
                 <p className="font-serif text-[17px] leading-relaxed text-ink-main italic">
-                  "Patient exhibits signs of mild irregular rhythm predominantly during nocturnal hours.
-                  Elevated resting heart rate and decreased HRV correlate with sympathetic dominance.
-                  Pattern analysis indicates high probability of early-stage Paroxysmal Atrial Fibrillation.
-                  No immediate signs of ischemia detected. Clinical correlation and formal 12-lead ECG advised."
+                  "{narrative || 'Patient exhibits signs of mild irregular rhythm predominantly during nocturnal hours. Elevated resting heart rate and decreased HRV correlate with sympathetic dominance. Pattern analysis indicates high probability of early-stage Paroxysmal Atrial Fibrillation. No immediate signs of ischemia detected. Clinical correlation and formal 12-lead ECG advised.'}"
                 </p>
               </div>
 

@@ -1,91 +1,204 @@
-# CLAUDE_CODE_HANDOFF.md
-# The exact prompt to paste into Claude Code
+# Claude Code Handoff
 
----
+## Paste This As Your First Message In Claude Code
 
-## PASTE THIS AS YOUR FIRST MESSAGE IN CLAUDE CODE:
+You are working in the VitalSense repository.
 
----
+The frontend already exists in `./src`. The backend does not exist yet and must be created under `./backend`.
 
-You are building the complete backend and wiring the frontend for VitalSense, a clinical AI vitals analysis platform. All context is in the /docs folder. Read all 5 documents before writing a single line of code.
+Read these files first, in this exact order, before writing code:
 
-**Step 0 — Read all docs first:**
-Read these files in order:
-1. docs/CODEBASE_CONTEXT.md
-2. docs/API_SPEC.md
-3. docs/ML_SPEC.md
-4. docs/FRONTEND_WIRING.md
-5. docs/DEMO_DATA.md
+1. `./codebase.md`
+2. `./backend_docs/API_SPEC.md`
+3. `./backend_docs/ML_SPEC.md`
+4. `./backend_docs/FRONTEND_WIRING.md`
+5. `./backend_docs/DEMO_DATA.md`
+6. `./backend_docs/CODEBASE_CONTEXT.md`
 
-**Step 1 — Set up backend structure:**
-Create the backend/ directory structure exactly as specified in ML_SPEC.md.
-Create requirements.txt with all dependencies listed.
-Create .env with placeholder keys.
+Important corrections before you start:
 
-**Step 2 — Train ML models:**
-Write and run backend/models/train_ensemble.py.
-This must:
-- Download UCI Heart Disease dataset using ucimlrepo
-- Train XGBoost + RandomForest + PyTorch NN for all 5 conditions
-- Train IsolationForest for anomaly detection
-- Save ensemble.pkl, scaler.pkl, iso_forest.pkl, label_encoders.pkl to backend/models/
-- Print accuracy and AUC scores after training
+- The real docs folder is `./backend_docs`, not `./docs`
+- The repo currently uses `VitalsContext`, not Zustand
+- Zustand is not installed yet and must be added if you follow the wiring plan
+- Do not assume these exist unless you confirm them in code:
+  - `/settings`
+  - `/comparison`
+  - `src/types/index.ts`
+  - `NeuralCommandDock.tsx`
+  - `body-map.png`
+- The current chat page still uses a direct browser Anthropic call and should be replaced by backend-mediated streaming
 
-Do not proceed to Step 3 until models are saved and accuracy is printed.
+Your job:
 
-**Step 3 — Build FastAPI backend:**
-Build backend/main.py and all supporting files in backend/ml/, backend/genai/, backend/parsers/.
-Implement all endpoints from API_SPEC.md.
-Run the server and verify GET /health returns 200.
+1. Create the `backend/` directory structure described in `ML_SPEC.md`
+2. Add backend dependencies and env placeholders
+3. Implement the FastAPI backend from `API_SPEC.md`
+4. Build and save the ensemble artifacts needed for `/predict`
+5. Implement graceful fallbacks for optional components:
+   - Gemini unavailable
+   - MedGemma unavailable
+   - PTB-XL unavailable
+6. Wire the frontend to the backend using the plan in `FRONTEND_WIRING.md`, but preserve the existing UI and styling
+7. Replace local demo prediction flow with API-backed state
+8. Replace direct browser Anthropic usage with backend chat streaming
+9. Add demo fallback data from `DEMO_DATA.md`
 
-**Step 4 — Test prediction endpoint:**
-Run the curl command from DEMO_DATA.md for the critical patient.
-Verify the response matches the expected schema in API_SPEC.md.
-Fix any errors before proceeding.
+Non-negotiable rules:
 
-**Step 5 — Wire frontend:**
-Create src/store/predictionStore.ts as specified in FRONTEND_WIRING.md.
-Create src/lib/api.ts as specified.
-Wire VitalInputPage, PredictionsPage, AIInsightsPage, ClinicalChatPage, DashboardSidebar.
-Add the 3 preset patient buttons to VitalInputPage.
-Create src/data/demoResult.ts with the demo fallback data from DEMO_DATA.md.
+- Do not redesign the frontend
+- Do not change CSS, layout, or animations unless fixing an actual bug
+- Do not modify `LandingPage`, `LoginPage`, or `SignupPage` unless necessary for a real integration fix
+- Do not break `LiveECG.tsx` or `CursorGlow.tsx`
+- Prefer correct backend completion over partially implementing every optional ML feature
+- If Gemini is unavailable, ship deterministic fallback behavior instead of failing
+- If PTB-XL is unavailable, `/predict/ecg` must fail gracefully and never crash the server
+- If a doc conflicts with the repo, trust the repo first and `codebase.md` second
 
-**Step 6 — Train ECG model (if time allows):**
-Write backend/models/train_ecg.py.
-Check if backend/data/ptbxl/ exists. If it does, train the 1D-ResNet.
-If not, create a stub that returns graceful error from /predict/ecg.
+Execution order:
 
-**Step 7 — Final verification:**
-Run npm run build — must pass with 0 errors.
-Run npx tsc --noEmit — must pass with 0 TypeScript errors.
-Make one full round-trip: submit critical patient vitals from VitalInputPage, verify PredictionsPage shows real data.
+### Step 0
 
-**Critical rules:**
-- Do NOT change any CSS, colors, animations, or component layouts
-- Do NOT touch LandingPage, LoginPage, SignupPage
-- Do NOT modify LiveECG.tsx or CursorGlow.tsx
-- The frontend design is complete and final — only add data wiring
-- If you hit an error, fix it before moving to the next step
-- If Gemini API is unreachable, implement a rule-based narrative fallback (simple string template)
-- If PTB-XL data is missing, /predict/ecg must return a graceful 422, not crash the server
+Inspect the repo and produce a short implementation plan based on `codebase.md`.
+
+### Step 1
+
+Create `backend/` with the structure defined in `ML_SPEC.md`.
+
+### Step 2
+
+Create:
+
+- `backend/requirements.txt`
+- `backend/.env`
+- `backend/main.py`
+- backend subpackages under `ml/`, `genai/`, `parsers/`, and `models/`
+
+### Step 3
+
+Implement and run `backend/models/train_ensemble.py`.
+
+This must save:
+
+- `backend/models/ensemble.pkl`
+- `backend/models/scaler.pkl`
+- `backend/models/iso_forest.pkl`
+- `backend/models/label_encoders.pkl`
+
+Do not move on until the training script saves artifacts and prints real metrics.
+
+### Step 4
+
+Implement the core prediction pipeline and make `POST /predict` match `API_SPEC.md`.
+
+This includes:
+
+- hard-limit validation
+- anomaly detection
+- preprocessing/default filling
+- ensemble voting
+- SHAP output
+- temporal trend output
+- confidence output
+- overall risk output
+
+### Step 5
+
+Implement:
+
+- `GET /health`
+- `POST /summarize` as SSE
+- `POST /chat` as SSE
+- `POST /parse-pdf`
+- `POST /voice-to-vitals`
+- patient history endpoints
+
+### Step 6
+
+Handle ECG:
+
+- if PTB-XL is present, implement/train it
+- if PTB-XL is absent, keep `/predict/ecg` explicit and graceful
+
+### Step 7
+
+Wire the frontend:
+
+- install and add Zustand if needed
+- create `src/store/predictionStore.ts`
+- create `src/lib/api.ts`
+- wire `VitalInputPage`
+- wire `PredictionsPage`
+- wire `AIInsightsPage`
+- wire `ClinicalChatPage`
+- wire dashboard trend/value consumers as specified
+- keep the UI intact
+
+### Step 8
+
+Verification:
+
+- verify `GET /health`
+- verify `POST /predict`
+- verify SSE format for `/summarize`
+- verify SSE format for `/chat`
+- verify PDF and voice routes
+- run frontend lint
+- run frontend build if the local environment allows it
+
+If you hit a blocker, stop and state exactly which type:
+
+- missing dataset
+- missing API key
+- missing dependency
+- environment permission issue
+- schema mismatch
+
+Then fix what is fixable and continue.
 
 Go.
 
----
+## If Claude Code Gets Stuck
 
-## IF CLAUDE CODE GETS STUCK — FOLLOW-UP PROMPTS:
+### If the backend docs seem inconsistent
 
-**If models didn't train:**
-> The models didn't save. Re-run train_ensemble.py and show me the printed accuracy scores before continuing.
+Use `codebase.md` as the corrected source of truth and continue.
 
-**If /predict returns 500:**
-> The /predict endpoint is returning 500. Show me the full traceback and fix it. Do not move on until curl returns the expected JSON schema.
+### If `zustand` is missing
 
-**If frontend has TypeScript errors:**
-> Run npx tsc --noEmit and fix every error shown. Do not add // @ts-ignore — fix the actual types.
+Install it and proceed with the store migration from `VitalsContext` to API-backed prediction state.
 
-**If narrative isn't streaming:**
-> The /summarize SSE stream isn't working. Test it with the curl command from DEMO_DATA.md and show me the raw output. Fix the SSE format to match: data: {"token": "word"}\n\n
+### If `/predict` returns 500
 
-**If PDF upload doesn't work:**
-> Test /parse-pdf with a sample PDF. If Gemini Embedding 2 API is unavailable, fall back to PyMuPDF regex extraction only. Never crash — always return partial results.
+Print the traceback, fix the failing layer, and do not proceed until the response matches `API_SPEC.md`.
+
+### If SSE is malformed
+
+Fix the stream to emit:
+
+```text
+data: {"token":"..."}
+
+data: {"done":true,"full_text":"..."}
+
+```
+
+### If Gemini is unavailable
+
+Implement:
+
+- template-based narrative fallback for `/summarize`
+- deterministic fallback chat response for `/chat`
+- regex/PyMuPDF fallback for `/parse-pdf`
+
+### If PTB-XL is unavailable
+
+Keep `/predict/ecg` non-crashing and return a clear 422 or explicit unavailable response per the backend contract.
+
+### If frontend build fails
+
+Separate:
+
+- repo code issues
+- local environment issues
+
+Do not invent fixes for environment-specific permission failures.

@@ -22,3 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment / secrets
+.env
+
+# PTB-XL ECG dataset (2.8 GB — training data only, not needed at runtime)
+ptbxl/
+backend/data/ptbxl/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Training logs
+train_log.txt
+*.err.log
+*.out.log

@@ -6,6 +6,7 @@ import type { Vital } from '../../data/dashboardData';
 interface VitalCardProps {
   vital: Vital;
   index: number;
+  trendDirection?: 'rising' | 'falling' | 'stable';
 }
 
 const statusConfig = {
@@ -26,7 +27,13 @@ const statusConfig = {
   },
 };
 
-export default function VitalCard({ vital, index }: VitalCardProps) {
+const trendArrow = {
+  rising:  { symbol: '↑', color: 'text-rose-dark' },
+  falling: { symbol: '↓', color: 'text-sage-dark' },
+  stable:  { symbol: '→', color: 'text-ink-soft' },
+};
+
+export default function VitalCard({ vital, index, trendDirection }: VitalCardProps) {
   const valueRef = useRef<HTMLSpanElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const prevValueRef = useRef<number>(vital.value);
@@ -86,6 +93,11 @@ export default function VitalCard({ vital, index }: VitalCardProps) {
           {vital.id === 'bp' ? vital.displayValue : String(vital.value)}
         </span>
         <span className="text-[10px] text-ink-soft font-medium">{vital.unit}</span>
+        {trendDirection && (
+          <span className={`text-[11px] font-bold ml-0.5 ${trendArrow[trendDirection].color}`}>
+            {trendArrow[trendDirection].symbol}
+          </span>
+        )}
       </div>
 
       {/* Subtle animated bottom bar for elevated */}

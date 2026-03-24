@@ -5,6 +5,8 @@ import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
 import { useVitals } from '../context/VitalsContext';
 import { computePrediction } from '../lib/predictionEngine';
+import { usePredictionStore } from '../store/predictionStore';
+import { getRecommendations } from '../lib/api';
 
 // Gauge constant
 const GAUGE_TOTAL = 283;   // ≈ π × 90 (half-circle circumference)
@@ -31,29 +33,86 @@ const SHAP_LEFT_STYLES = [
 export default function PredictionsPage() {
   const navigate = useNavigate();
   const { submittedVitals } = useVitals();
-  const prediction = computePrediction(submittedVitals);
+  const { result: apiResult } = usePredictionStore();
 
-  // Derived from prediction
-  const CONDITIONS = prediction.conditions.map((c, i) => ({
-    ...c,
-    ...barStyleForIndex(i),
-    span: (i === prediction.conditions.length - 1 ? 2 : 1) as 1 | 2,
-  }));
-  const shapPos = prediction.shapValues.filter(s => s.dir === 'pos');
-  const shapNeg = prediction.shapValues.filter(s => s.dir === 'neg');
+  // Use backend result if available, else fall back to local engine
+  const localPrediction = computePrediction(submittedVitals);
+
+  // Build CONDITIONS from API result or local fallback
+  const CONDITIONS = apiResult
+    ? apiResult.conditions.map((c, i) => {
+        const colorMap: Record<string, string> = { rose: 'bg-rose-dark/80', amber: 'bg-amber-main', sage: 'bg-ink-soft/50' };
+        const textMap:  Record<string, string> = { rose: 'text-rose-dark',  amber: 'text-amber-dark',  sage: 'text-ink-main'  };
+        const borderMap: Record<string, string> = { rose: 'border-rose-dark/20', amber: 'border-amber-dark/20', sage: 'border-black/5' };
+        const pct = Math.round(c.probability * 100);
+        const lower = i === 0 && apiResult.confidence
+          ? Math.round(apiResult.confidence.lower * 100)
+          : Math.max(0, pct - 7);
+        const upper = i === 0 && apiResult.confidence
+          ? Math.round(apiResult.confidence.upper * 100)
+          : Math.min(100, pct + 7);
+        return {
+          label:     c.name,
+          pct,
+          ci:        `${lower}–${upper}%`,
+          barCls:    colorMap[c.color] ?? colorMap['sage'],
+          textCls:   textMap[c.color]  ?? textMap['sage'],
+          borderCls: borderMap[c.color] ?? borderMap['sage'],
+          span:      (i === apiResult.conditions.length - 1 ? 2 : 1) as 1 | 2,
+        };
+      })
+    : localPrediction.conditions.map((c, i) => ({
+        ...c,
+        ...barStyleForIndex(i),
+        span: (i === localPrediction.conditions.length - 1 ? 2 : 1) as 1 | 2,
+      }));
+
+  // SHAP data
+  const shapPos = apiResult
+    ? apiResult.shap.filter(s => s.direction === 'positive').map(s => ({
+        label: s.display_name, pct: Math.round(Math.abs(s.shap_score) * 200), display: String(s.value), dir: 'pos' as const,
+      }))
+    : localPrediction.shapValues.filter(s => s.dir === 'pos');
+  const shapNeg = apiResult
+    ? apiResult.shap.filter(s => s.direction === 'negative').map(s => ({
+        label: s.display_name, pct: Math.round(Math.abs(s.shap_score) * 200), display: String(s.value), dir: 'neg' as const,
+      }))
+    : localPrediction.shapValues.filter(s => s.dir === 'neg');
+
   const SHAP_RIGHT = shapPos.slice(0, 3).map((s, i) => ({
-    label: s.label, pct: s.pct, value: s.display,
+    label: s.label, pct: s.pct, value: 'display' in s ? s.display : '',
     ...SHAP_RIGHT_STYLES[i] ?? SHAP_RIGHT_STYLES[2],
   }));
   const SHAP_LEFT = shapNeg.slice(0, 2).map((s, i) => ({
-    label: s.label, pct: s.pct, value: s.display,
+    label: s.label, pct: s.pct, value: 'display' in s ? s.display : '',
     ...SHAP_LEFT_STYLES[i] ?? SHAP_LEFT_STYLES[1],
   }));
-  const GAUGE_SCORE  = prediction.riskScore;
+
+  const GAUGE_SCORE  = apiResult
+    ? Math.round(apiResult.overall_risk_score * 100)
+    : localPrediction.riskScore;
   const GAUGE_OFFSET = +(GAUGE_TOTAL * (1 - GAUGE_SCORE / 100)).toFixed(2);
+
+  // Confidence & anomaly from API (shown if available)
+  const confidenceLabel = apiResult?.confidence?.label ?? null;
+  const anomalyFlag     = apiResult?.anomaly_flag ?? false;
+  const anomalyScore    = apiResult?.anomaly_score ?? 0;
+  const inferenceMs     = apiResult?.model_info?.inference_time_ms ?? null;
 
   const [loading,  setLoading]  = useState(true);
   const [score,    setScore]    = useState(0);
+  const { narrative, lastVitals } = usePredictionStore();
+  const [recommendations, setRecommendations] = useState<Array<{ label: string; badge: string; type: 'urgent' | 'moderate' | 'routine' }> | null>(null);
+
+  useEffect(() => {
+    if (!apiResult) return;
+    getRecommendations(
+      lastVitals ?? {},
+      apiResult.conditions,
+      apiResult.shap,
+      narrative || undefined,
+    ).then(data => { if (data) setRecommendations(data); }).catch(() => {});
+  }, [apiResult?.timestamp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Loading veil refs
   const veilRef        = useRef<HTMLDivElement>(null);
@@ -66,8 +125,6 @@ export default function PredictionsPage() {
   const contentRef     = useRef<HTMLDivElement>(null);
   const gaugePathRef   = useRef<SVGPathElement>(null);
   const condBarRefs    = useRef<(HTMLDivElement | null)[]>([]);
-  const shapRightRefs  = useRef<(HTMLDivElement | null)[]>([]);
-  const shapLeftRefs   = useRef<(HTMLDivElement | null)[]>([]);
 
   // ── Loading sequence ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -102,7 +159,7 @@ export default function PredictionsPage() {
     return () => ctx.revert();
   }, []);
 
-  // ── Reveal animations (after veil gone) ─────────────────────────────────────
+  // ── Reveal animations (after veil gone) — runs once ─────────────────────────
   useEffect(() => {
     if (loading) return;
 
@@ -117,22 +174,6 @@ export default function PredictionsPage() {
         });
       }
 
-      // Score counter
-      const proxy = { val: 0 };
-      gsap.to(proxy, {
-        val: GAUGE_SCORE,
-        duration: 2.4,
-        delay: 0.4,
-        ease: 'power2.out',
-        onUpdate: () => setScore(Math.round(proxy.val)),
-      });
-
-      // Gauge arc
-      gsap.fromTo(gaugePathRef.current,
-        { attr: { strokeDashoffset: GAUGE_TOTAL } },
-        { attr: { strokeDashoffset: GAUGE_OFFSET }, duration: 2.4, delay: 0.4, ease: 'vitalize-soft' }
-      );
-
       // Condition bars
       condBarRefs.current.forEach((bar, i) => {
         if (!bar) return;
@@ -141,28 +182,33 @@ export default function PredictionsPage() {
           duration: 1.7, delay: 0.65 + i * 0.09, ease: 'vitalize-soft',
         });
       });
-
-      // SHAP right bars
-      shapRightRefs.current.forEach((bar, i) => {
-        if (!bar) return;
-        gsap.fromTo(bar, { width: '0%' }, {
-          width: `${SHAP_RIGHT[i]?.pct ?? 0}%`,
-          duration: 1.4, delay: 0.75 + i * 0.1, ease: 'vitalize',
-        });
-      });
-
-      // SHAP left bars
-      shapLeftRefs.current.forEach((bar, i) => {
-        if (!bar) return;
-        gsap.fromTo(bar, { width: '0%' }, {
-          width: `${SHAP_LEFT[i]?.pct ?? 0}%`,
-          duration: 1.4, delay: 0.75 + i * 0.1, ease: 'vitalize',
-        });
-      });
     });
 
     return () => ctx.revert();
-  }, [loading, prediction.riskScore]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Gauge arc + score counter — re-runs when risk score updates ───────────────
+  useEffect(() => {
+    if (loading) return;
+
+    // Score counter
+    const proxy = { val: 0 };
+    const tween1 = gsap.to(proxy, {
+      val: GAUGE_SCORE,
+      duration: 2.4,
+      delay: 0.4,
+      ease: 'power2.out',
+      onUpdate: () => setScore(Math.round(proxy.val)),
+    });
+
+    // Gauge arc
+    const tween2 = gsap.fromTo(gaugePathRef.current,
+      { attr: { strokeDashoffset: GAUGE_TOTAL } },
+      { attr: { strokeDashoffset: GAUGE_OFFSET }, duration: 2.4, delay: 0.4, ease: 'vitalize-soft' }
+    );
+
+    return () => { tween1.kill(); tween2.kill(); };
+  }, [loading, GAUGE_SCORE]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -355,14 +401,29 @@ export default function PredictionsPage() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1.5 flex-wrap gap-3">
-                  <h3 className="font-serif text-2xl font-medium text-ink-main">Arrhythmia Event Risk</h3>
+                  <h3 className="font-serif text-2xl font-medium text-ink-main">
+                    {apiResult ? apiResult.primary_condition.name : 'Arrhythmia Event Risk'}
+                  </h3>
                   <div className="bg-paper text-rose-dark px-3 py-1 rounded-md text-sm font-bold tracking-wide shadow-sm border border-rose-dark/10">
-                    78% Confidence
+                    {confidenceLabel ? `${confidenceLabel} Confidence` : '78% Confidence'}
                   </div>
                 </div>
                 <p className="text-sm text-ink-muted leading-relaxed max-w-xl">
-                  Model detects a high probability pattern correlating with mild irregular rhythms within the next 24–48 hours. Requires clinical review.
+                  {apiResult
+                    ? apiResult.conditions[0]?.description ?? 'Requires clinical review.'
+                    : 'Model detects a high probability pattern correlating with mild irregular rhythms within the next 24–48 hours. Requires clinical review.'
+                  }
                 </p>
+                {anomalyFlag && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 text-amber-dark text-xs font-medium bg-amber-light/40 border border-amber-main/30 px-2.5 py-1 rounded-full">
+                    <span>⚠</span> Anomaly detected (score: {anomalyScore.toFixed(2)}) — verify inputs
+                  </div>
+                )}
+                {inferenceMs != null && (
+                  <div className="mt-1 text-[11px] font-mono text-ink-soft">
+                    Ensemble inference: {inferenceMs}ms · XGBoost + RF + PyTorch NN · UCI Heart Disease N=918
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -406,60 +467,28 @@ export default function PredictionsPage() {
 
             {/* SHAP Attribution */}
             <div className="ri" style={{ transform: 'translateY(20px)' }}>
-              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-6">
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-4">
                 Factor Attribution (SHAP)
               </h3>
-
-              <div className="relative pb-7 border-b border-black/5">
-                {/* Center axis */}
-                <div className="absolute left-[50%] top-0 bottom-7 w-px bg-black/10 z-0" />
-                <div className="absolute left-[50%] -translate-x-1/2 bottom-0 font-mono text-[9px] text-ink-soft">
-                  Base Risk
-                </div>
-
-                <div className="flex flex-col gap-4 relative z-10">
-                  {/* Right-facing bars (positive) */}
-                  {SHAP_RIGHT.map((f, i) => (
-                    <div key={f.label} className="flex items-center text-xs group">
-                      <div className="w-24 font-mono text-ink-muted truncate pr-2 text-right text-[11px]">
-                        {f.label}
-                      </div>
-                      <div className="flex-1 relative h-6 flex items-center">
+              <div className="flex flex-col gap-3 border-b border-black/5 pb-5">
+                {[...SHAP_RIGHT, ...SHAP_LEFT].map(f => {
+                  const pct = Math.min(f.pct, 100);
+                  const isPos = SHAP_RIGHT.includes(f);
+                  return (
+                    <div key={f.label} className="flex items-center gap-3 min-w-0">
+                      <div className="w-24 font-mono text-[11px] text-ink-muted truncate text-right flex-shrink-0">{f.label}</div>
+                      <div className="flex-1 min-w-0 bg-ivory rounded-full overflow-hidden h-[16px]">
                         <div
-                          ref={el => { shapRightRefs.current[i] = el; }}
-                          className={`absolute left-[50%] h-5 ${f.barCls} rounded-r shadow-sm flex items-center justify-end pr-1.5 overflow-hidden`}
-                          style={{ width: '0%' }}
-                        >
-                          <span className={`font-mono text-[10px] ${f.labelCls} opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap`}>
-                            {f.value}
-                          </span>
-                        </div>
+                          className={`h-full rounded-full ${isPos ? f.barCls : f.barCls}`}
+                          style={{ width: `${pct}%`, minWidth: '4px' }}
+                        />
                       </div>
-                      <div className="w-10" />
-                    </div>
-                  ))}
-
-                  {/* Left-facing bars (negative) */}
-                  {SHAP_LEFT.map((f, i) => (
-                    <div key={f.label} className="flex items-center text-xs group">
-                      <div className="w-24" />
-                      <div className="flex-1 relative h-6 flex items-center justify-end">
-                        <div
-                          ref={el => { shapLeftRefs.current[i] = el; }}
-                          className={`absolute right-[50%] h-5 ${f.barCls} rounded-l shadow-sm flex items-center justify-start pl-1.5 overflow-hidden`}
-                          style={{ width: '0%' }}
-                        >
-                          <span className={`font-mono text-[10px] ${f.labelCls} opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap`}>
-                            {f.value}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="w-24 font-mono text-ink-muted truncate pl-2 text-left text-[11px]">
-                        {f.label}
+                      <div className={`w-10 font-mono text-[10px] font-bold flex-shrink-0 ${f.labelCls}`}>
+                        {isPos ? '+' : '-'}{f.value}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -494,31 +523,34 @@ export default function PredictionsPage() {
                 Action Pathways
               </h3>
               <div className="flex flex-col gap-3">
-
-                <ActionRow
-                  label="Schedule 12-lead ECG"
-                  badge="+24% Diagnostic"
-                  rowBg="bg-rose-light/10 hover:bg-rose-light/30 border-rose-dark/10"
-                  iconBg="text-rose-dark"
-                  badgeBg="bg-paper text-rose-dark border border-black/5"
-                  icon={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>}
-                />
-                <ActionRow
-                  label="Reduce sodium intake"
-                  badge="-12% Risk"
-                  rowBg="bg-ivory hover:bg-cream border-black/5"
-                  iconBg="text-sage-dark"
-                  badgeBg="bg-sage-light text-sage-dark border border-sage-dark/10"
-                  icon={<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>}
-                />
-                <ActionRow
-                  label="Guided breathing protocol"
-                  badge="-18% Tone"
-                  rowBg="bg-ivory hover:bg-cream border-black/5"
-                  iconBg="text-lavender-dark"
-                  badgeBg="bg-lavender-light text-lavender-dark border border-lavender-dark/10"
-                  icon={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>}
-                />
+                {(recommendations ?? [
+                  { label: 'Schedule 12-lead ECG',      badge: '+24% Diagnostic', type: 'urgent'   as const },
+                  { label: 'Reduce sodium intake',       badge: '-12% Risk',       type: 'routine'  as const },
+                  { label: 'Guided breathing protocol',  badge: '-18% Tone',       type: 'moderate' as const },
+                ]).map((rec, i) => {
+                  const typeStyles = {
+                    urgent:   { rowBg: 'bg-rose-light/10 hover:bg-rose-light/30 border-rose-dark/10',       iconBg: 'text-rose-dark',     badgeBg: 'bg-paper text-rose-dark border border-black/5'         },
+                    moderate: { rowBg: 'bg-ivory hover:bg-cream border-black/5',                             iconBg: 'text-lavender-dark', badgeBg: 'bg-lavender-light text-lavender-dark border border-lavender-dark/10' },
+                    routine:  { rowBg: 'bg-ivory hover:bg-cream border-black/5',                             iconBg: 'text-sage-dark',     badgeBg: 'bg-sage-light text-sage-dark border border-sage-dark/10' },
+                  };
+                  const icons = [
+                    <path key="a" d="M22 12h-4l-3 9L9 3l-3 9H2"/>,
+                    <path key="b" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>,
+                    <><circle key="c1" cx="12" cy="12" r="10"/><path key="c2" d="M12 16v-4"/><path key="c3" d="M12 8h.01"/></>,
+                  ];
+                  const s = typeStyles[rec.type] ?? typeStyles.routine;
+                  return (
+                    <ActionRow
+                      key={i}
+                      label={rec.label}
+                      badge={rec.badge}
+                      rowBg={s.rowBg}
+                      iconBg={s.iconBg}
+                      badgeBg={s.badgeBg}
+                      icon={icons[i % 3]}
+                    />
+                  );
+                })}
               </div>
             </div>
 

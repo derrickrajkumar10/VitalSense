@@ -6,6 +6,9 @@ import { gsap } from '../lib/gsap';
 import CriticalAlertModal from '../components/CriticalAlertModal';
 import type { AlertData } from '../components/CriticalAlertModal';
 import { useVitals } from '../context/VitalsContext';
+import { usePredictionStore } from '../store/predictionStore';
+import { predictVitals, streamNarrative, parsePDF, voiceToVitals, storeHistory } from '../lib/api';
+import { DEMO_CRITICAL_VITALS, DEMO_NORMAL_VITALS, DEMO_BORDERLINE_VITALS } from '../data/demoResult';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type TabId = 'manual' | 'voice' | 'csv' | 'pdf';
@@ -249,16 +252,26 @@ export default function VitalInputPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { submitVitals } = useVitals();
+  const { setPredictions, setLastVitals, setLoading, setError, setNarrative, setNarrativeLoading } = usePredictionStore();
 
   const [activeTab, setActiveTab]   = useState<TabId>('manual');
   const [values, setValues]         = useState<VitalValues>({ hr: '', bp: '', spo2: '', temp: '', resp: '', hrv: '' });
   const [toastMsg, setToastMsg]     = useState('');
+  const [toastTitle, setToastTitle] = useState('Notice');
   const [toastVisible, setToastVisible] = useState(false);
   const [voiceActive, setVoiceActive]   = useState(false);
   const [alertData, setAlertData]       = useState<AlertData | null>(null);
   const [showAlert, setShowAlert]       = useState(false);
   const [csvFileName, setCsvFileName]   = useState<string | null>(null);
   const [pdfFileName, setPdfFileName]   = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading]     = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [hasRecording, setHasRecording] = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef   = useRef<Blob[]>([]);
 
   // File input refs
   const csvInputRef  = useRef<HTMLInputElement>(null);
@@ -497,19 +510,122 @@ export default function VitalInputPage() {
     const n = parseFloat(raw);
     if (isNaN(n)) { dismissToast(); return; }
     if (field === 'hr' && (n > 250 || n < 20)) {
-      showToast(`A heart rate of ${n} bpm is highly irregular or physiologically impossible. Please verify sensor placement or entry.`);
+      showToast(`A heart rate of ${n} bpm is highly irregular or physiologically impossible. Please verify sensor placement or entry.`, 'Physiologically Improbable Value');
     } else if (field === 'spo2' && n > 100) {
-      showToast('SpO2 values cannot exceed 100%. Please check the entered value.');
+      showToast('SpO2 values cannot exceed 100%. Please check the entered value.', 'Physiologically Improbable Value');
     } else {
       dismissToast();
     }
   }, []);
 
-  function showToast(message: string) {
+  function showToast(message: string, title = 'Notice') {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMsg(message);
+    setToastTitle(title);
     setToastVisible(true);
     toastTimerRef.current = setTimeout(() => setToastVisible(false), 6000);
+  }
+
+  // ── Demo preset loader ─────────────────────────────────────────────────
+  function loadDemoPreset(preset: Record<string, unknown>) {
+    const bp = preset.bp_systolic && preset.bp_diastolic
+      ? `${preset.bp_systolic}/${preset.bp_diastolic}`
+      : '';
+    setValues({
+      hr:   String(preset.hr   ?? ''),
+      bp,
+      spo2: String(preset.spo2 ?? ''),
+      temp: String(preset.temp ?? ''),
+      resp: String(preset.rr   ?? ''),
+      hrv:  '',
+    });
+    showToast('Demo patient loaded — click Submit Vitals Record to run prediction.');
+  }
+
+  // ── PDF upload handler ─────────────────────────────────────────────────
+  async function handlePDFUpload(file: File) {
+    setPdfLoading(true);
+    try {
+      const result = await parsePDF(file);
+      if (result.vitals) {
+        const v = result.vitals;
+        setValues(prev => ({
+          ...prev,
+          hr:   v.hr   != null ? String(v.hr)   : prev.hr,
+          bp:   v.bp_systolic != null && v.bp_diastolic != null
+                  ? `${v.bp_systolic}/${v.bp_diastolic}` : prev.bp,
+          spo2: v.spo2 != null ? String(v.spo2) : prev.spo2,
+          temp: v.temp != null ? String(v.temp) : prev.temp,
+          resp: v.rr   != null ? String(v.rr)   : prev.resp,
+        }));
+      }
+      const found = result.fields_found?.length ?? 0;
+      showToast(`PDF parsed — ${found} field(s) extracted (${Math.round((result.confidence ?? 0) * 100)}% confidence)`);
+    } catch {
+      showToast('PDF parsing failed — please fill vitals manually');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  // ── Voice recording handlers ───────────────────────────────────────────
+  async function handleMicToggle() {
+    if (voiceActive) {
+      // Stop recording
+      mediaRecorderRef.current?.stop();
+      setVoiceActive(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunksRef.current = [];
+        setHasRecording(false);
+        const mr = new MediaRecorder(stream);
+        mediaRecorderRef.current = mr;
+        mr.ondataavailable = e => {
+          if (e.data.size > 0) {
+            audioChunksRef.current.push(e.data);
+            setHasRecording(true);
+          }
+        };
+        mr.onstop = () => stream.getTracks().forEach(t => t.stop());
+        mr.start(500); // collect chunks every 500ms so hasRecording updates during recording
+        setVoiceActive(true);
+      } catch {
+        showToast('Microphone access denied — please allow mic access and try again.');
+      }
+    }
+  }
+
+  async function handleProcessVoice() {
+    if (audioChunksRef.current.length === 0) {
+      showToast('No recording found — tap the mic button to start recording first.');
+      return;
+    }
+    setVoiceLoading(true);
+    try {
+      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      const result = await voiceToVitals(blob, 'audio/webm');
+      if (result.vitals) {
+        const v = result.vitals;
+        setValues(prev => ({
+          ...prev,
+          hr:   v.hr   != null ? String(v.hr)   : prev.hr,
+          bp:   v.bp_systolic != null && v.bp_diastolic != null
+                  ? `${v.bp_systolic}/${v.bp_diastolic}` : prev.bp,
+          spo2: v.spo2 != null ? String(v.spo2) : prev.spo2,
+          temp: v.temp != null ? String(v.temp) : prev.temp,
+          resp: v.rr   != null ? String(v.rr)   : prev.resp,
+        }));
+      }
+      if (result.transcript) setVoiceTranscript(result.transcript);
+      const found = result.fields_found?.length ?? 0;
+      showToast(`${found} vital field(s) extracted from voice (${Math.round((result.confidence ?? 0) * 100)}% confidence). Switching to manual tab — click Submit to generate your report.`, 'Voice Parsed');
+      switchTab('manual');
+    } catch {
+      showToast('Voice parsing failed — please fill vitals manually.');
+    } finally {
+      setVoiceLoading(false);
+    }
   }
 
   function dismissToast() {
@@ -552,7 +668,7 @@ export default function VitalInputPage() {
           </svg>
         </div>
         <div>
-          <h4 className="font-medium text-sm text-ink-main">Physiologically Improbable Value</h4>
+          <h4 className="font-medium text-sm text-ink-main">{toastTitle}</h4>
           <p className="text-xs text-ink-muted mt-1 leading-relaxed">{toastMsg}</p>
         </div>
         <button
@@ -646,6 +762,27 @@ export default function VitalInputPage() {
               {/* ══ MANUAL TAB ══════════════════════════════════════════════ */}
               {activeTab === 'manual' && (
                 <div className="flex flex-col w-full h-full justify-between">
+                  {/* Demo preset buttons */}
+                  <div className="flex gap-2 mb-5">
+                    <button
+                      onClick={() => loadDemoPreset(DEMO_CRITICAL_VITALS)}
+                      className="flex-1 py-2 px-3 rounded-lg text-[11px] font-medium border border-rose-main/30 text-rose-main bg-rose-light/20 hover:bg-rose-light/40 transition-colors"
+                    >
+                      Critical Patient
+                    </button>
+                    <button
+                      onClick={() => loadDemoPreset(DEMO_BORDERLINE_VITALS)}
+                      className="flex-1 py-2 px-3 rounded-lg text-[11px] font-medium border border-amber-main/30 text-amber-main bg-amber-light/20 hover:bg-amber-light/40 transition-colors"
+                    >
+                      Borderline Patient
+                    </button>
+                    <button
+                      onClick={() => loadDemoPreset(DEMO_NORMAL_VITALS)}
+                      className="flex-1 py-2 px-3 rounded-lg text-[11px] font-medium border border-sage-dark/30 text-sage-dark bg-sage-light/20 hover:bg-sage-light/40 transition-colors"
+                    >
+                      Normal Patient
+                    </button>
+                  </div>
                   <div ref={cardsGridRef} className="grid grid-cols-2 gap-5 mb-8">
                     {VITAL_CARDS.map(card => (
                       <div
@@ -670,10 +807,6 @@ export default function VitalInputPage() {
                             step={card.step}
                             onChange={e => {
                               setValues(v => ({ ...v, [card.id]: e.target.value }));
-                              if (card.id === 'hr' || card.id === 'spo2') {
-                                validateInput(card.id, e.target.value);
-                              }
-                              checkCriticalThreshold(card.id, e.target.value);
                             }}
                             className={`text-4xl font-medium text-ink-main bg-transparent outline-none ${card.inputWidth} placeholder:text-ink-soft/30 vital-input`}
                             placeholder={card.placeholder}
@@ -688,16 +821,85 @@ export default function VitalInputPage() {
                     ref={submitBtnRef}
                     onMouseEnter={() => onSubmitHover(true)}
                     onMouseLeave={() => onSubmitHover(false)}
-                    onClick={() => {
+                    onClick={async () => {
                       if (!values.hr || !values.bp || !values.spo2) {
                         showToast('Please fill in at least Heart Rate, Blood Pressure, and SpO2 before submitting.');
                         return;
                       }
+                      if (submitting) return;
+                      // Run threshold + range checks on submit
+                      for (const field of ['hr', 'spo2'] as const) {
+                        validateInput(field, values[field]);
+                      }
+                      for (const field of Object.keys(values) as (keyof VitalValues)[]) {
+                        checkCriticalThreshold(field, values[field]);
+                      }
+                      setSubmitting(true);
+
+                      // Parse BP string "135/85" → systolic/diastolic
+                      const bpParts = values.bp.split('/');
+                      const bp_systolic  = parseFloat(bpParts[0] ?? '');
+                      const bp_diastolic = parseFloat(bpParts[1] ?? '');
+
+                      const payload: Record<string, unknown> = {
+                        hr:           parseFloat(values.hr)   || 72,
+                        bp_systolic:  bp_systolic  || 120,
+                        bp_diastolic: bp_diastolic || 80,
+                        spo2:         parseFloat(values.spo2) || 98,
+                        rr:           parseFloat(values.resp) || 15,
+                        temp:         parseFloat(values.temp) || 37.0,
+                        patient_id:   'patient_001',
+                        session_id:   `session_${Date.now()}`,
+                      };
+
+                      // Keep legacy context in sync
                       submitVitals(values as unknown as Record<string, string>);
-                      if (submitBtnRef.current) {
-                        gsap.to(submitBtnRef.current, { backgroundColor: '#63755A', duration: 0.2 });
-                        submitBtnRef.current.innerHTML = '<span>Saved ✓</span>';
-                        setTimeout(() => navigate('/predictions'), 1500);
+
+                      setLoading(true);
+                      setError(null);
+
+                      try {
+                        const result = await predictVitals(payload);
+                        setPredictions(result);
+                        void storeHistory('patient_001', result, new Date().toISOString());
+                        setLastVitals({
+                          hr:           payload.hr as number,
+                          bp_systolic:  payload.bp_systolic as number,
+                          bp_diastolic: payload.bp_diastolic as number,
+                          spo2:         payload.spo2 as number,
+                          rr:           payload.rr as number,
+                          temp:         payload.temp as number,
+                        });
+
+                        // Stream narrative in background
+                        setNarrativeLoading(true);
+                        setNarrative('');
+                        void (async () => {
+                          let full = '';
+                          for await (const token of streamNarrative({
+                            vitals: payload,
+                            conditions: result.conditions,
+                            shap: result.shap,
+                            trend: result.trend,
+                            patient_context: {},
+                          })) {
+                            full += token;
+                            setNarrative(full);
+                          }
+                          setNarrativeLoading(false);
+                        })();
+
+                        if (submitBtnRef.current) {
+                          gsap.to(submitBtnRef.current, { backgroundColor: '#63755A', duration: 0.2 });
+                          submitBtnRef.current.innerHTML = '<span>Analysis Ready ✓</span>';
+                        }
+                        setTimeout(() => navigate('/predictions'), 1200);
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : 'Prediction failed';
+                        setError(msg);
+                        showToast(`Error: ${msg}`);
+                        setLoading(false);
+                        setSubmitting(false);
                       }
                     }}
                     className="w-full bg-ink-main text-paper py-4 rounded-xl font-medium text-sm shadow-[0_4px_14px_rgba(44,41,38,0.2)] flex items-center justify-center gap-2 mt-auto"
@@ -729,7 +931,7 @@ export default function VitalInputPage() {
                     {/* Mic button */}
                     <button
                       aria-label={voiceActive ? 'Stop recording' : 'Start recording'}
-                      onClick={() => setVoiceActive(v => !v)}
+                      onClick={handleMicToggle}
                       className="relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-dark/40 rounded-full"
                     >
                       <div
@@ -753,15 +955,23 @@ export default function VitalInputPage() {
                     </button>
 
                     {/* Transcript box */}
-                    <div className="w-full max-w-md bg-paper border border-black/5 shadow-inner-soft rounded-xl p-6 text-center">
-                      <p className="font-mono text-sm text-ink-muted leading-relaxed">
-                        <span className="text-ink-main">"Patient resting heart rate is 72,</span> blood pressure 120 over 80..."
-                      </p>
+                    <div className="w-full max-w-md bg-paper border border-black/5 shadow-inner-soft rounded-xl p-6 text-center min-h-[80px] flex items-center justify-center">
+                      {voiceTranscript ? (
+                        <p className="font-mono text-sm text-ink-main leading-relaxed">"{voiceTranscript}"</p>
+                      ) : (
+                        <p className="font-mono text-sm text-ink-muted leading-relaxed">
+                          {voiceActive ? 'Recording… speak your vitals now.' : 'Tap the mic to start recording, then click Process Recording.'}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <button className="w-full bg-ink-main text-paper py-4 rounded-xl font-medium text-sm shadow-[0_4px_14px_rgba(44,41,38,0.2)] hover:bg-ink-main/90 transition-all flex items-center justify-center gap-2 mt-8">
-                    Process Recording
+                  <button
+                    onClick={handleProcessVoice}
+                    disabled={voiceLoading || !hasRecording}
+                    className="w-full bg-ink-main text-paper py-4 rounded-xl font-medium text-sm shadow-[0_4px_14px_rgba(44,41,38,0.2)] hover:bg-ink-main/90 transition-all flex items-center justify-center gap-2 mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {voiceLoading ? 'Processing…' : 'Process Recording'}
                   </button>
                 </div>
               )}
@@ -812,7 +1022,13 @@ export default function VitalInputPage() {
                     type="file"
                     accept=".pdf"
                     className="hidden"
-                    onChange={e => { if (e.target.files?.[0]) setPdfFileName(e.target.files[0].name); }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setPdfFileName(file.name);
+                        void handlePDFUpload(file);
+                      }
+                    }}
                   />
                   <div className="flex-1 flex items-center justify-center w-full">
                     <div
@@ -844,9 +1060,11 @@ export default function VitalInputPage() {
                       </div>
                       <div className="text-center relative z-10">
                         <h3 className="font-medium text-ink-main text-lg mb-1">Scan PDF Report</h3>
-                        {pdfFileName
-                          ? <p className="text-sm text-lavender-dark font-medium">{pdfFileName}</p>
-                          : <p className="text-sm text-ink-muted">VitalSense OCR will extract metrics automatically</p>
+                        {pdfLoading
+                          ? <p className="text-sm text-lavender-dark font-medium">Extracting vitals…</p>
+                          : pdfFileName
+                            ? <p className="text-sm text-lavender-dark font-medium">{pdfFileName}</p>
+                            : <p className="text-sm text-ink-muted">VitalSense OCR will extract metrics automatically</p>
                         }
                       </div>
                     </div>

@@ -5,6 +5,8 @@ import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
 import { useVitals } from '../context/VitalsContext';
 import { computePrediction } from '../lib/predictionEngine';
+import { usePredictionStore } from '../store/predictionStore';
+import { getRecommendations } from '../lib/api';
 
 const POP_BARS = [
   { label: 'Heart Rate Efficiency',   pct: 78, percentile: '78th Percentile', barCls: 'bg-sage-main',  textCls: 'text-sage-dark',  hasMarker: false },
@@ -54,10 +56,29 @@ const ACTION_STEPS = [
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function AIInsightsPage() {
   const navigate = useNavigate();
-  const prediction = computePrediction(useVitals().submittedVitals);
-  const HEALTH_SCORE = prediction.riskScore;
+  const { result: apiResult, lastVitals, narrative } = usePredictionStore();
+  const localPrediction = computePrediction(useVitals().submittedVitals);
+
+  const HEALTH_SCORE = apiResult
+    ? Math.round(apiResult.overall_risk_score * 100)
+    : localPrediction.riskScore;
+  const topConditionName = apiResult
+    ? apiResult.primary_condition.name
+    : localPrediction.topCondition;
+  const shapEntries = apiResult?.shap?.slice(0, 5) ?? [];
 
   const [loading, setLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState<Array<{ label: string; badge: string; type: 'urgent' | 'moderate' | 'routine' }> | null>(null);
+
+  useEffect(() => {
+    if (!apiResult) return;
+    getRecommendations(
+      lastVitals ?? {},
+      apiResult.conditions,
+      apiResult.shap,
+      narrative || undefined,
+    ).then(data => { if (data) setRecommendations(data); }).catch(() => {});
+  }, [apiResult?.timestamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const [score,   setScore]   = useState(0);
   const [micActive, setMicActive] = useState(false);
 
@@ -106,7 +127,7 @@ export default function AIInsightsPage() {
     return () => ctx.revert();
   }, []);
 
-  // ── Reveal + content animations ──────────────────────────────────────────────
+  // ── Reveal + content animations — runs once ──────────────────────────────────
   useEffect(() => {
     if (loading) return;
 
@@ -120,15 +141,6 @@ export default function AIInsightsPage() {
           clearProps: 'transform',
         });
       }
-
-      // Score counter
-      const proxy = { val: 0 };
-      gsap.to(proxy, {
-        val: HEALTH_SCORE,
-        duration: 2.3, delay: 0.3, ease: 'power2.out',
-        onUpdate: () => setScore(Math.round(proxy.val)),
-      });
-
 
       // Chart path draw
       if (chartPathRef.current) {
@@ -200,6 +212,18 @@ export default function AIInsightsPage() {
       });
     });
     return () => ctx.revert();
+  }, [loading]);
+
+  // ── Score counter — re-runs when health score updates ────────────────────────
+  useEffect(() => {
+    if (loading) return;
+    const proxy = { val: 0 };
+    const tween = gsap.to(proxy, {
+      val: HEALTH_SCORE,
+      duration: 2.3, delay: 0.3, ease: 'power2.out',
+      onUpdate: () => setScore(Math.round(proxy.val)),
+    });
+    return () => { tween.kill(); };
   }, [loading, HEALTH_SCORE]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -385,7 +409,7 @@ export default function AIInsightsPage() {
                 </svg>
               </div>
               <p className="font-serif text-lg leading-relaxed text-ink-main italic">
-                "Patient showing consistent improvement in cardiovascular stability with significantly reduced nocturnal arrhythmia episodes over the observed period."
+                "{narrative || 'Patient showing consistent improvement in cardiovascular stability with significantly reduced nocturnal arrhythmia episodes over the observed period.'}"
               </p>
             </div>
           </div>
@@ -405,7 +429,7 @@ export default function AIInsightsPage() {
                 <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Top Risk Factor</h3>
               </div>
               <div>
-                <h4 className="font-serif text-[22px] text-ink-main leading-tight mb-2">{prediction.topCondition}</h4>
+                <h4 className="font-serif text-[22px] text-ink-main leading-tight mb-2">{topConditionName}</h4>
                 <p className="text-sm text-ink-muted leading-relaxed">
                   Algorithmic analysis flags a pattern of elevated systolic readings consistently occurring during evening hours (18:00 – 22:00).
                 </p>
@@ -462,6 +486,43 @@ export default function AIInsightsPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* ── SHAP Factor Attribution ──────────────────────────────────── */}
+          <div className="ri bg-paper rounded-2xl p-8 shadow-card border border-black/5 flex flex-col gap-6" style={{ transform: 'translateY(20px)' }}>
+            <div className="flex items-center gap-3 pb-4 border-b border-black/5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-ink-muted">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Factor Attribution (SHAP)</h3>
+              {shapEntries.length > 0 && (
+                <span className="ml-auto font-mono text-[10px] text-ink-soft bg-ivory border border-black/5 px-2 py-0.5 rounded">Top {shapEntries.length} drivers</span>
+              )}
+            </div>
+            {shapEntries.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {shapEntries.map(s => {
+                  const width = Math.min(Math.abs(s.shap_score) / 0.5 * 100, 100);
+                  const isPos = s.shap_score > 0;
+                  return (
+                    <div key={s.feature} className="flex items-center gap-3 min-w-0">
+                      <div className="w-28 font-mono text-[11px] text-ink-muted truncate text-right flex-shrink-0">{s.display_name}</div>
+                      <div className="flex-1 min-w-0 bg-ivory rounded-full overflow-hidden h-[18px]">
+                        <div
+                          className={`h-full rounded-full ${isPos ? 'bg-rose-main/80' : 'bg-sage-main/80'}`}
+                          style={{ width: `${width}%`, minWidth: '4px' }}
+                        />
+                      </div>
+                      <div className={`w-12 font-mono text-[10px] font-bold flex-shrink-0 ${isPos ? 'text-rose-dark' : 'text-sage-dark'}`}>
+                        {isPos ? '+' : ''}{(s.shap_score * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-ink-muted italic">Submit vitals to see SHAP factor attribution from the ML model.</p>
+            )}
           </div>
 
           {/* ── 2-column cards ──────────────────────────────────────────────── */}
@@ -556,24 +617,34 @@ export default function AIInsightsPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              {ACTION_STEPS.map((step, i) => (
-                <div
-                  key={i}
-                  className="action-row flex items-center justify-between p-4 rounded-xl border border-black/5 bg-ivory hover:bg-cream cursor-pointer group transition-colors duration-200"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`action-icon w-8 h-8 rounded bg-paper flex items-center justify-center shadow-sm border border-black/5 transition-colors duration-200 ${step.iconHoverBorder}`}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-colors duration-200 ${step.iconHoverText}`}>
-                        {step.icon}
-                      </svg>
+              {(recommendations ?? ACTION_STEPS.map(s => ({ label: s.label, badge: s.priority, type: s.badgeCls.includes('rose') ? 'urgent' : s.badgeCls.includes('amber') ? 'moderate' : 'routine' as const }))).map((step, i) => {
+                const typeStyles = {
+                  urgent:   { badgeCls: 'bg-rose-light text-rose-dark border-rose-dark/10',     iconHoverBorder: 'group-hover:border-rose-dark/30',   iconHoverText: 'group-hover:text-rose-dark'   },
+                  moderate: { badgeCls: 'bg-amber-light text-amber-dark border-amber-dark/10',   iconHoverBorder: 'group-hover:border-amber-dark/30',  iconHoverText: 'group-hover:text-amber-dark'  },
+                  routine:  { badgeCls: 'bg-sage-light text-sage-dark border-sage-dark/10',      iconHoverBorder: 'group-hover:border-sage-dark/30',   iconHoverText: 'group-hover:text-sage-dark'   },
+                };
+                const s = typeStyles[step.type];
+                const icons = [
+                  <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>,
+                  <><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
+                  <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
+                ];
+                return (
+                  <div key={i} className="action-row flex items-center justify-between p-4 rounded-xl border border-black/5 bg-ivory hover:bg-cream cursor-pointer group transition-colors duration-200">
+                    <div className="flex items-center gap-4">
+                      <div className={`action-icon w-8 h-8 rounded bg-paper flex items-center justify-center shadow-sm border border-black/5 transition-colors duration-200 ${s.iconHoverBorder}`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-colors duration-200 ${s.iconHoverText}`}>
+                          {icons[i % 3]}
+                        </svg>
+                      </div>
+                      <span className="font-medium text-[15px] text-ink-main">{step.label}</span>
                     </div>
-                    <span className="font-medium text-[15px] text-ink-main">{step.label}</span>
+                    <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${s.badgeCls}`}>
+                      {step.badge}
+                    </span>
                   </div>
-                  <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${step.badgeCls}`}>
-                    {step.priority}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

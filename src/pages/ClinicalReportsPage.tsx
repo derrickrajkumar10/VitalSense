@@ -5,49 +5,98 @@ import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { usePredictionStore } from '../store/predictionStore';
+import type { LastSubmittedVitals, ShapEntry } from '../store/predictionStore';
+import { getRecommendations } from '../lib/api';
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const VITALS_TABLE = [
-  {
-    dot: 'bg-sage-main', label: 'Heart Rate', value: '72', unit: 'bpm',
-    range: '60 – 100', status: 'Normal',
-    badge: 'bg-sage-light text-sage-dark border-sage-dark/10',
-    valueClass: '',  rowClass: '',
-  },
-  {
-    dot: 'bg-lavender-main', label: 'Blood Pressure', value: '135/85', unit: 'mmHg',
-    range: '120/80', status: 'Elevated',
-    badge: 'bg-lavender-light text-lavender-dark border-lavender-dark/10',
-    valueClass: '',  rowClass: '',
-  },
-  {
-    dot: 'bg-sage-main', label: 'SpO₂', value: '99', unit: '%',
-    range: '95 – 100%', status: 'Normal',
-    badge: 'bg-sage-light text-sage-dark border-sage-dark/10',
-    valueClass: '',  rowClass: '',
-  },
-  {
-    dot: 'bg-sage-main', label: 'Temperature', value: '36.8', unit: '°C',
-    range: '36.1 – 37.2', status: 'Normal',
-    badge: 'bg-sage-light text-sage-dark border-sage-dark/10',
-    valueClass: '',  rowClass: '',
-  },
-  {
-    dot: 'bg-sage-main', label: 'Resp Rate', value: '14', unit: 'br/m',
-    range: '12 – 20', status: 'Normal',
-    badge: 'bg-sage-light text-sage-dark border-sage-dark/10',
-    valueClass: '',  rowClass: '',
-  },
-  {
-    dot: 'bg-rose-main', label: 'ECG / HRV', value: '42', unit: 'ms',
-    range: '50 – 100', status: 'Low',
-    badge: 'bg-rose-light text-rose-dark border-rose-dark/20',
-    valueClass: 'text-rose-dark', rowClass: 'bg-rose-light/5',
-  },
+function buildVitalsRows(v: LastSubmittedVitals) {
+  const hrOk   = v.hr >= 60 && v.hr <= 100;
+  const bpOk   = v.bp_systolic < 120;
+  const bpElev = v.bp_systolic >= 120 && v.bp_systolic < 140;
+  const spo2Ok = v.spo2 >= 95;
+  const tempOk = v.temp >= 36.1 && v.temp <= 37.2;
+  const rrOk   = v.rr >= 12 && v.rr <= 20;
+  return [
+    {
+      dot: hrOk ? 'bg-sage-main' : 'bg-rose-main',
+      label: 'Heart Rate', value: String(Math.round(v.hr)), unit: 'bpm',
+      range: '60 – 100',
+      status: hrOk ? 'Normal' : v.hr > 100 ? 'Elevated' : 'Low',
+      badge: hrOk ? 'bg-sage-light text-sage-dark border-sage-dark/10' : 'bg-rose-light text-rose-dark border-rose-dark/20',
+      valueClass: hrOk ? '' : 'text-rose-dark', rowClass: hrOk ? '' : 'bg-rose-light/5',
+    },
+    {
+      dot: bpOk ? 'bg-sage-main' : 'bg-lavender-main',
+      label: 'Blood Pressure', value: `${Math.round(v.bp_systolic)}/${Math.round(v.bp_diastolic)}`, unit: 'mmHg',
+      range: '120/80',
+      status: bpOk ? 'Normal' : bpElev ? 'Elevated' : 'High',
+      badge: bpOk ? 'bg-sage-light text-sage-dark border-sage-dark/10' : 'bg-lavender-light text-lavender-dark border-lavender-dark/10',
+      valueClass: '', rowClass: '',
+    },
+    {
+      dot: spo2Ok ? 'bg-sage-main' : 'bg-rose-main',
+      label: 'SpO₂', value: String(Math.round(v.spo2)), unit: '%',
+      range: '95 – 100%',
+      status: spo2Ok ? 'Normal' : 'Low',
+      badge: spo2Ok ? 'bg-sage-light text-sage-dark border-sage-dark/10' : 'bg-rose-light text-rose-dark border-rose-dark/20',
+      valueClass: spo2Ok ? '' : 'text-rose-dark', rowClass: spo2Ok ? '' : 'bg-rose-light/5',
+    },
+    {
+      dot: tempOk ? 'bg-sage-main' : 'bg-amber-main',
+      label: 'Temperature', value: v.temp.toFixed(1), unit: '°C',
+      range: '36.1 – 37.2',
+      status: tempOk ? 'Normal' : 'Elevated',
+      badge: tempOk ? 'bg-sage-light text-sage-dark border-sage-dark/10' : 'bg-amber-light text-amber-dark border-amber-dark/10',
+      valueClass: '', rowClass: '',
+    },
+    {
+      dot: rrOk ? 'bg-sage-main' : 'bg-amber-main',
+      label: 'Resp Rate', value: String(Math.round(v.rr)), unit: 'br/m',
+      range: '12 – 20',
+      status: rrOk ? 'Normal' : 'Abnormal',
+      badge: rrOk ? 'bg-sage-light text-sage-dark border-sage-dark/10' : 'bg-amber-light text-amber-dark border-amber-dark/10',
+      valueClass: '', rowClass: '',
+    },
+  ];
+}
+
+const POS_BARS = ['bg-rose-main/90', 'bg-amber-main/90', 'bg-rose-light border border-rose-dark/10'];
+const NEG_BARS = ['bg-lavender-main/90', 'bg-sage-main/90'];
+const POS_TEXT = ['text-rose-dark', 'text-amber-dark', 'text-rose-dark'];
+const NEG_TEXT = ['text-lavender-dark', 'text-sage-dark'];
+
+function buildShapBars(shap: ShapEntry[]) {
+  let posIdx = 0, negIdx = 0;
+  return shap.map(s => {
+    const width = Math.min(Math.abs(s.shap_score) / 0.5 * 100, 100);
+    const isPos = s.shap_score > 0;
+    const bar  = isPos ? POS_BARS[Math.min(posIdx,   POS_BARS.length - 1)] : NEG_BARS[Math.min(negIdx,   NEG_BARS.length - 1)];
+    const text = isPos ? POS_TEXT[Math.min(posIdx,   POS_TEXT.length - 1)] : NEG_TEXT[Math.min(negIdx,   NEG_TEXT.length - 1)];
+    if (isPos) posIdx++; else negIdx++;
+    return {
+      label: s.display_name,
+      width,
+      dir: isPos ? 'pos' : 'neg',
+      bar, text,
+      display: `${s.shap_score > 0 ? '+' : ''}${(s.shap_score * 100).toFixed(0)}%`,
+    };
+  });
+}
+
+// ── Fallback data (shown when store is empty) ─────────────────────────────────
+
+const FALLBACK_VITALS = [
+  { dot: 'bg-sage-main',     label: 'Heart Rate',     value: '72',     unit: 'bpm',  range: '60 – 100',    status: 'Normal',  badge: 'bg-sage-light text-sage-dark border-sage-dark/10',         valueClass: '',             rowClass: '' },
+  { dot: 'bg-lavender-main', label: 'Blood Pressure', value: '135/85', unit: 'mmHg', range: '120/80',       status: 'Elevated',badge: 'bg-lavender-light text-lavender-dark border-lavender-dark/10', valueClass: '',             rowClass: '' },
+  { dot: 'bg-sage-main',     label: 'SpO₂',           value: '99',     unit: '%',    range: '95 – 100%',   status: 'Normal',  badge: 'bg-sage-light text-sage-dark border-sage-dark/10',         valueClass: '',             rowClass: '' },
+  { dot: 'bg-sage-main',     label: 'Temperature',    value: '36.8',   unit: '°C',   range: '36.1 – 37.2', status: 'Normal',  badge: 'bg-sage-light text-sage-dark border-sage-dark/10',         valueClass: '',             rowClass: '' },
+  { dot: 'bg-sage-main',     label: 'Resp Rate',      value: '14',     unit: 'br/m', range: '12 – 20',     status: 'Normal',  badge: 'bg-sage-light text-sage-dark border-sage-dark/10',         valueClass: '',             rowClass: '' },
+  { dot: 'bg-rose-main',     label: 'ECG / HRV',      value: '42',     unit: 'ms',   range: '50 – 100',    status: 'Low',     badge: 'bg-rose-light text-rose-dark border-rose-dark/20',         valueClass: 'text-rose-dark', rowClass: 'bg-rose-light/5' },
 ];
 
-const SHAP_BARS = [
+const FALLBACK_SHAP = [
   { label: 'Heart Rate Variability', width: 35, dir: 'pos', bar: 'bg-rose-main/90',    text: 'text-rose-dark',     display: '+22%' },
   { label: 'Stress Index',           width: 24, dir: 'pos', bar: 'bg-amber-main/90',   text: 'text-amber-dark',    display: '+15%' },
   { label: 'Current HR',             width: 16, dir: 'pos', bar: 'bg-rose-light border border-rose-dark/10', text: 'text-rose-dark', display: '+10%' },
@@ -95,9 +144,37 @@ const RECOMMENDATIONS = [
 
 export default function ClinicalReportsPage() {
   const navigate = useNavigate();
+  const { result, lastVitals, narrative } = usePredictionStore();
+
+  const TARGET_SCORE    = result ? Math.round(result.overall_risk_score * 100) : 78;
+  const conditionName   = result?.primary_condition.name ?? 'Arrhythmia Event Risk';
+  const conditionConf   = result ? Math.round(result.primary_condition.probability * 100) : 78;
+  const reportDate      = result?.timestamp
+    ? new Date(result.timestamp).toLocaleString()
+    : 'Oct 25, 2023 at 08:42 AM PST';
+  const summaryText     = narrative ||
+    'Patient exhibits signs of mild irregular rhythm predominantly during nocturnal hours. ' +
+    'Elevated resting heart rate and decreased HRV correlate with sympathetic dominance. ' +
+    'Pattern analysis indicates high probability of early-stage Paroxysmal Atrial Fibrillation. ' +
+    'No immediate signs of ischemia detected.';
+
+  const vitalsData = lastVitals ? buildVitalsRows(lastVitals) : FALLBACK_VITALS;
+  const shapData   = result?.shap?.length ? buildShapBars(result.shap.slice(0, 5)) : FALLBACK_SHAP;
+
   const [score, setScore] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [recommendations, setRecommendations] = useState<Array<{ label: string; badge: string; type: string }> | null>(null);
+
+  useEffect(() => {
+    if (!result) return;
+    getRecommendations(
+      lastVitals ?? {},
+      result.conditions ?? [],
+      result.shap ?? [],
+      narrative || undefined,
+    ).then(setRecommendations).catch(() => {/* use fallback */});
+  }, [result?.timestamp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gaugeRef   = useRef<SVGPathElement>(null);
   const ecgRef     = useRef<SVGPathElement>(null);
@@ -151,13 +228,13 @@ export default function ClinicalReportsPage() {
       // Gauge arc
       if (gaugeRef.current) {
         gsap.set(gaugeRef.current, { strokeDasharray: 283, strokeDashoffset: 283 });
-        gsap.to(gaugeRef.current, { strokeDashoffset: 62.26, duration: 1.9, delay: 0.55, ease: 'vitalize-soft' });
+        gsap.to(gaugeRef.current, { strokeDashoffset: 283 * (1 - TARGET_SCORE / 100), duration: 1.9, delay: 0.55, ease: 'vitalize-soft' });
       }
 
       // Score counter
       const proxy = { val: 0 };
       gsap.to(proxy, {
-        val: 78, duration: 1.7, delay: 0.55, ease: 'vitalize-soft',
+        val: TARGET_SCORE, duration: 1.7, delay: 0.55, ease: 'vitalize-soft',
         onUpdate() { setScore(Math.round(proxy.val)); },
       });
 
@@ -181,17 +258,19 @@ export default function ClinicalReportsPage() {
         }
       });
 
-      // Rec cards stagger
-      const recCards = mainRef.current?.querySelectorAll('.rec-card');
-      if (recCards) {
-        gsap.fromTo(recCards,
-          { y: 16, opacity: 0 },
-          { y: 0, opacity: 1, stagger: 0.1, duration: 0.5, delay: 0.9, ease: 'vitalize' }
-        );
-      }
     });
     return () => ctx.revert();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-animate rec cards whenever recommendations data arrives
+  useEffect(() => {
+    const recCards = mainRef.current?.querySelectorAll('.rec-card');
+    if (!recCards?.length) return;
+    gsap.fromTo(recCards,
+      { y: 12, opacity: 0 },
+      { y: 0, opacity: 1, stagger: 0.09, duration: 0.45, ease: 'vitalize' }
+    );
+  }, [recommendations]);
 
   return (
     <motion.div
@@ -220,7 +299,7 @@ export default function ClinicalReportsPage() {
               Dashboard
             </button>
             <h1 className="font-serif text-3xl text-ink-main tracking-tight mb-2">Clinical Report</h1>
-            <p className="text-sm text-ink-muted">Eleanor Vance • Generated Oct 25, 2023 at 08:42 AM PST</p>
+            <p className="text-sm text-ink-muted">Eleanor Vance • Generated {reportDate}</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => window.print()} className="px-5 py-2.5 border border-black/10 bg-paper rounded-xl text-sm font-medium text-ink-main hover:bg-cream transition flex items-center gap-2 shadow-sm">
@@ -271,7 +350,7 @@ export default function ClinicalReportsPage() {
               <h2 className="font-serif text-3xl text-ink-main tracking-tight mb-2">Eleanor Vance</h2>
               <div className="font-mono text-xs text-ink-muted uppercase tracking-widest flex flex-col gap-1">
                 <span>MRN: 849-291-B</span>
-                <span>Date: Oct 25, 2023</span>
+                <span>Date: {reportDate}</span>
               </div>
             </div>
           </div>
@@ -282,11 +361,8 @@ export default function ClinicalReportsPage() {
           <section className="report-sec" style={{ opacity: 0 }}>
             <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-4">Clinical Summary</h3>
             <div className="bg-ivory/60 p-6 rounded-2xl border-l-[3px] border-ink-soft">
-              <p className="font-serif text-[20px] leading-relaxed text-ink-main italic">
-                "Patient exhibits signs of mild irregular rhythm predominantly during nocturnal hours.
-                Elevated resting heart rate and decreased HRV correlate with sympathetic dominance.
-                Pattern analysis indicates high probability of early-stage Paroxysmal Atrial Fibrillation.
-                No immediate signs of ischemia detected."
+              <p className="font-serif text-[20px] leading-relaxed text-ink-main italic whitespace-pre-line">
+                "{summaryText}"
               </p>
             </div>
           </section>
@@ -309,7 +385,7 @@ export default function ClinicalReportsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/5 text-sm">
-                  {VITALS_TABLE.map(row => (
+                  {vitalsData.map(row => (
                     <tr key={row.label} className={`hover:bg-ivory/20 transition-colors group ${row.rowClass}`}>
                       <td className="px-6 py-4 font-medium">
                         <div className="flex items-center gap-3">
@@ -368,10 +444,10 @@ export default function ClinicalReportsPage() {
                   </div>
                 </div>
                 <h4 className="font-serif text-[22px] font-medium text-ink-main mb-3 text-center leading-tight">
-                  Arrhythmia Event Risk
+                  {conditionName}
                 </h4>
                 <span className="bg-rose-light/60 text-rose-dark px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-widest border border-rose-dark/10">
-                  78% Confidence
+                  {conditionConf}% Confidence
                 </span>
               </div>
             </section>
@@ -381,53 +457,22 @@ export default function ClinicalReportsPage() {
               <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-6">
                 Factor Attribution (SHAP)
               </h3>
-              <div className="relative pb-8 border-b border-black/5 flex-1 flex flex-col justify-center">
-                {/* Centerline */}
-                <div className="absolute left-[50%] top-0 bottom-8 w-px bg-black/10 z-0"/>
-                {/* Base label */}
-                <div className="absolute left-[50%] -translate-x-1/2 bottom-0 font-mono text-[9px] uppercase tracking-widest text-ink-soft">
-                  Base Risk
-                </div>
-
-                <div className="flex flex-col gap-4 relative z-10">
-                  {SHAP_BARS.map((b, i) => (
-                    <div key={b.label} className="flex items-center text-xs group">
-                      {b.dir === 'pos' ? (
-                        <>
-                          <div className="w-32 font-mono text-[11px] text-ink-muted truncate pr-3 text-right">{b.label}</div>
-                          <div className="flex-1 relative h-[22px] flex items-center">
-                            <div
-                              ref={el => { barRefs.current[i] = el; }}
-                              className={`bar-fill bar-positive ${b.bar} shadow-sm flex items-center justify-end pr-2 overflow-hidden`}
-                              style={{ width: `${b.width}%` }}
-                            >
-                              <span className={`font-mono text-[9px] font-bold ${b.text} opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap`}>
-                                {b.display}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="w-16"/>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-16"/>
-                          <div className="flex-1 relative h-[22px] flex items-center justify-end">
-                            <div
-                              ref={el => { barRefs.current[i] = el; }}
-                              className={`bar-fill bar-negative ${b.bar} shadow-sm flex items-center justify-start pl-2 overflow-hidden`}
-                              style={{ width: `${b.width}%` }}
-                            >
-                              <span className={`font-mono text-[9px] font-bold ${b.text} opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap`}>
-                                {b.display}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="w-32 font-mono text-[11px] text-ink-muted truncate pl-3 text-left">{b.label}</div>
-                        </>
-                      )}
+              <div className="flex-1 flex flex-col gap-3 justify-center">
+                {shapData.map((b, i) => (
+                  <div key={b.label} className="flex items-center gap-3 min-w-0">
+                    <div className="w-24 font-mono text-[11px] text-ink-muted truncate text-right flex-shrink-0">{b.label}</div>
+                    <div className="flex-1 min-w-0 bg-ivory rounded-full overflow-hidden h-[16px]">
+                      <div
+                        ref={el => { barRefs.current[i] = el; }}
+                        className={`bar-fill h-full rounded-full ${b.bar}`}
+                        style={{ width: `${b.width}%`, minWidth: '4px' }}
+                      />
                     </div>
-                  ))}
-                </div>
+                    <div className={`w-10 font-mono text-[10px] font-bold flex-shrink-0 ${b.text}`}>
+                      {b.display}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           </div>
@@ -487,23 +532,37 @@ export default function ClinicalReportsPage() {
           <section className="report-sec" style={{ opacity: 0 }}>
             <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted mb-4">AI Recommendations</h3>
             <div className="grid grid-cols-3 gap-5">
-              {RECOMMENDATIONS.map(r => (
-                <div
-                  key={r.label}
-                  className={`rec-card flex flex-col gap-4 p-6 rounded-2xl border ${r.border} ${r.bg} ${r.hover} transition-colors shadow-sm`}
-                  style={{ opacity: 0 }}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className={`w-10 h-10 rounded-xl bg-paper border ${r.iconBorder} flex items-center justify-center ${r.iconText} shadow-sm`}>
-                      {r.icon}
+              {(recommendations ?? RECOMMENDATIONS).map((r, i) => {
+                const isReal = recommendations !== null;
+                const type = isReal ? (r as { label: string; badge: string; type: string }).type : null;
+                const colors = type === 'urgent'
+                  ? { border: 'border-rose-dark/15', bg: 'bg-rose-light/10', hover: 'hover:bg-rose-light/20', iconBorder: 'border-rose-dark/10', iconText: 'text-rose-dark', badgeBorder: 'border-rose-dark/10', badgeText: 'text-rose-dark' }
+                  : type === 'moderate'
+                  ? { border: 'border-amber-dark/15', bg: 'bg-amber-light/10', hover: 'hover:bg-amber-light/20', iconBorder: 'border-amber-dark/10', iconText: 'text-amber-dark', badgeBorder: 'border-amber-dark/10', badgeText: 'text-amber-dark' }
+                  : { border: 'border-sage-dark/15', bg: 'bg-sage-light/10', hover: 'hover:bg-sage-light/20', iconBorder: 'border-sage-dark/10', iconText: 'text-sage-dark', badgeBorder: 'border-sage-dark/10', badgeText: 'text-sage-dark' };
+                const rc = isReal ? colors : (r as typeof RECOMMENDATIONS[0]);
+                const icons = [
+                  <svg key="a" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+                  <svg key="b" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+                  <svg key="c" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+                ];
+                return (
+                  <div
+                    key={r.label}
+                    className={`rec-card flex flex-col gap-4 p-6 rounded-2xl border ${rc.border} ${rc.bg} ${rc.hover} transition-colors shadow-sm`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className={`w-10 h-10 rounded-xl bg-paper border ${rc.iconBorder} flex items-center justify-center ${rc.iconText} shadow-sm`}>
+                        {isReal ? icons[i % 3] : (r as typeof RECOMMENDATIONS[0]).icon}
+                      </div>
+                      <div className={`bg-paper ${rc.badgeText} font-mono text-[9px] font-bold px-2.5 py-1.5 rounded-md shadow-sm border ${rc.badgeBorder} uppercase tracking-wider`}>
+                        {r.badge}
+                      </div>
                     </div>
-                    <div className={`bg-paper ${r.badgeText} font-mono text-[9px] font-bold px-2.5 py-1.5 rounded-md shadow-sm border ${r.badgeBorder} uppercase tracking-wider`}>
-                      {r.badge}
-                    </div>
+                    <span className="text-sm font-medium text-ink-main mt-1 leading-snug">{r.label}</span>
                   </div>
-                  <span className="text-sm font-medium text-ink-main mt-1 leading-snug">{r.label}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 

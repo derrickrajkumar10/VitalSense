@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { gsap } from '../lib/gsap';
 import { pageVariants } from '../lib/animations';
+import { getHistory, type HistoryRecord } from '../lib/api';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const TIMELINE = [
@@ -113,6 +114,13 @@ export default function PatientHistoryPage() {
   const navigate = useNavigate();
   const [activeRange, setActiveRange] = useState('1Y');
   const [selectedEntry, setSelectedEntry] = useState('October 24');
+  const [realRecords, setRealRecords] = useState<HistoryRecord[]>([]);
+
+  useEffect(() => {
+    getHistory('patient_001').then(data => {
+      if (data?.records?.length) setRealRecords([...data.records].reverse());
+    }).catch(() => {});
+  }, []);
 
   const contentRef   = useRef<HTMLDivElement>(null);
   const timelineRef  = useRef<HTMLDivElement>(null);
@@ -383,6 +391,32 @@ export default function PatientHistoryPage() {
               </button>
             </div>
           </div>
+
+          {/* ── REAL SESSION RECORDS (from backend) ─────────────────────── */}
+          {realRecords.length > 0 && (
+            <div className="ri bg-paper rounded-2xl shadow-soft border border-black/5 p-6 flex flex-col gap-4" style={{ transform: 'translateY(20px)' }}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Today's Sessions</h3>
+                <span className="font-mono text-[10px] text-ink-soft bg-sage-light/40 border border-sage-dark/10 px-2 py-0.5 rounded text-sage-dark">{realRecords.length} record{realRecords.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex flex-col divide-y divide-black/5">
+                {realRecords.map(rec => {
+                  const riskColor = rec.overall_risk_label === 'High' ? 'text-rose-dark bg-rose-light/60 border-rose-dark/10' : rec.overall_risk_label === 'Moderate' ? 'text-amber-dark bg-amber-light/60 border-amber-dark/10' : 'text-sage-dark bg-sage-light/60 border-sage-dark/10';
+                  return (
+                    <div key={rec.record_id} className="flex items-center justify-between py-3 gap-4">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-sm font-medium text-ink-main truncate">{rec.primary_condition ?? 'Unknown'}</span>
+                        <span className="font-mono text-[10px] text-ink-muted">{new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · HR {rec.vitals?.hr ?? '–'} · BP {rec.vitals?.bp_systolic ?? '–'}/{rec.vitals?.bp_diastolic ?? '–'} · SpO2 {rec.vitals?.spo2 ?? '–'}%</span>
+                      </div>
+                      <span className={`shrink-0 font-mono text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded border ${riskColor}`}>
+                        {rec.overall_risk_label} · {Math.round((rec.overall_risk_score ?? 0) * 100)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ── MULTI-LINE CHART CARD ─────────────────────────────────────── */}
           <div className="ri bg-paper rounded-2xl shadow-soft border border-black/5 p-7 flex flex-col" style={{ transform: 'translateY(20px)' }}>

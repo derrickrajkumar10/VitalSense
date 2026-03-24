@@ -10,6 +10,7 @@ import {
   appointments,
   bloodTests,
 } from '../../data/dashboardData';
+import { usePredictionStore } from '../../store/predictionStore';
 
 const appointmentStatusConfig = {
   past: 'opacity-40',
@@ -19,6 +20,12 @@ const appointmentStatusConfig = {
 
 export default function DashboardSidebar() {
   const navigate = useNavigate();
+  const { result: predResult, lastVitals } = usePredictionStore();
+
+  const trendMap = Object.fromEntries(
+    (predResult?.trend ?? []).map((t) => [t.vital, t.direction])
+  ) as Record<string, 'rising' | 'falling' | 'stable'>;
+
   const sidebarRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
   const patientRef = useRef<HTMLDivElement>(null);
@@ -27,8 +34,12 @@ export default function DashboardSidebar() {
   const bloodRef = useRef<HTMLDivElement>(null);
   const emergencyRef = useRef<HTMLDivElement>(null);
   const liveDotRef = useRef<HTMLDivElement>(null);
-  const [liveHr, setLiveHr] = useState(72);
+  const lastVitalsRef = useRef(lastVitals);
+  const [liveHr, setLiveHr] = useState(() => Math.round(lastVitals?.hr ?? 72));
   const [showEmergency, setShowEmergency] = useState(false);
+
+  // Keep ref current so interval can read latest value without re-registering
+  useEffect(() => { lastVitalsRef.current = lastVitals; }, [lastVitals]);
 
   useEffect(() => {
     // Stagger entrance animations
@@ -70,12 +81,12 @@ export default function DashboardSidebar() {
       });
     }
 
-    // Real-time HR simulation: fluctuate ±2bpm every 3s
+    // HR simulation: fluctuate ±2bpm around real value every 3s
     const hrInterval = setInterval(() => {
       const delta = (Math.random() - 0.5) * 4;
       setLiveHr((prev) => {
-        const next = Math.round(Math.max(68, Math.min(76, prev + delta)));
-        return next;
+        const base = lastVitalsRef.current?.hr ?? 72;
+        return Math.round(Math.max(base - 4, Math.min(base + 4, prev + delta)));
       });
     }, 3000);
 
@@ -189,9 +200,20 @@ export default function DashboardSidebar() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           {vitals.map((vital, i) => {
-            // Override HR display with live value
-            const liveVital = vital.id === 'hr' ? { ...vital, value: liveHr, displayValue: liveHr.toString() } : vital;
-            return <VitalCard key={vital.id} vital={liveVital} index={i} />;
+            let liveVital = vital;
+            if (vital.id === 'hr') {
+              liveVital = { ...vital, value: liveHr, displayValue: String(liveHr), status: liveHr > 100 ? 'elevated' : liveHr < 60 ? 'elevated' : 'normal' };
+            } else if (vital.id === 'bp' && lastVitals) {
+              const sys = Math.round(lastVitals.bp_systolic), dia = Math.round(lastVitals.bp_diastolic);
+              liveVital = { ...vital, value: sys, displayValue: `${sys}/${dia}`, status: sys >= 140 ? 'elevated' : 'normal' };
+            } else if (vital.id === 'spo2' && lastVitals) {
+              const v = Math.round(lastVitals.spo2);
+              liveVital = { ...vital, value: v, displayValue: String(v), status: v < 95 ? 'critical' : 'normal' };
+            } else if (vital.id === 'rr' && lastVitals) {
+              const v = Math.round(lastVitals.rr);
+              liveVital = { ...vital, value: v, displayValue: String(v), status: v > 20 || v < 12 ? 'elevated' : 'normal' };
+            }
+            return <VitalCard key={vital.id} vital={liveVital} index={i} trendDirection={trendMap[vital.id]} />;
           })}
         </div>
       </div>
