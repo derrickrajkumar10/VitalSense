@@ -613,14 +613,6 @@ Pinned versions for reproducibility. Key packages:
 
 ---
 
-## 🔗 Related Documentation
-
-- **`CLAUDE.md`** — Architecture notes, component patterns, animation stack, UI audit results for Claude Code integration
-- **`_archive/README_ARCHIVED.md`** — Recovery instructions for archived scaffolding files
-- **Backend Docs** *(in `_archive/backend_docs/`)* — ML pipeline specs, API details, data models
-
----
-
 <div align="center">
   <p><strong>Built with ❤️ for clinical excellence and user accessibility.</strong></p>
   <p>VitalSense © 2026. All rights reserved.</p>
