@@ -10,7 +10,6 @@
   ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
   ![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
   ![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
-  ![Anthropic](https://img.shields.io/badge/Anthropic_Claude-000000?style=for-the-badge&logo=anthropic&logoColor=white)
   ![Three.js](https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=three.js&logoColor=white)
 </div>
 
@@ -83,7 +82,7 @@ Full keyboard navigation, focus management, ARIA labels, and high-contrast desig
 | **Model Explainability** | SHAP | Per-vital contribution to risk scores (TreeExplainer) |
 | **Data Processing** | Pandas + NumPy | Clinical data wrangling and temporal analysis |
 | **ECG Data** | WFDB | PTB-XL dataset integration for demo records |
-| **GenAI** | Anthropic Claude API + Google Generative AI | Clinical decision support and narrative generation |
+| **GenAI** | MedGemma + OpenAI API | Clinical decision support and narrative generation |
 | **Serialization** | Pydantic | Type-safe request/response validation |
 | **Environment** | python-dotenv | Secure credential management |
 
@@ -94,43 +93,43 @@ Full keyboard navigation, focus management, ARIA labels, and high-contrast desig
 ### System Architecture (Local Development)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    VitalSense Frontend (React 19)            │
-│                   Running at localhost:5173                  │
+┌────────────────────────────────────────────────────────────┐
+│                    VitalSense Frontend (React 19)          │
+│                   Running at localhost:5173                │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │ Pages: Landing, Dashboard, Vitals, Predictions, etc. │  │
 │  │ State: VitalsContext + Zustand (predictionStore)     │  │
 │  │ Local Engine: predictionEngine.ts (rule-based)       │  │
 │  └──────────────────────────────────────────────────────┘  │
-│                          │                                   │
-│              HTTP / Server-Sent Events                       │
-│                          ▼                                   │
-├─────────────────────────────────────────────────────────────┤
-│               VitalSense Backend (FastAPI)                   │
-│                  Running at localhost:8000                   │
+│                          │                                 │
+│              HTTP / Server-Sent Events                     │
+│                          ▼                                 │
+├────────────────────────────────────────────────────────────┤
+│               VitalSense Backend (FastAPI)                 │
+│                  Running at localhost:8000                 │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │ /health            — server health check             │  │
 │  │ /predict           — ML ensemble risk prediction     │  │
 │  │ /predict/ecg       — ResNet ECG classification       │  │
 │  │ /summarize         — SHAP-based narrative (stream)   │  │
-│  │ /chat              — Claude chat + context (stream)  │  │
+│  │ /chat              — Chatbot grounded in clinical data│ │
 │  │ /voice-to-vitals   — speech-to-vital transcription   │  │
 │  │ /parse-pdf         — clinical document parsing       │  │
 │  │ /ecg/demos         — PTB-XL demo records             │  │
 │  │ /patient/*         — patient history storage         │  │
 │  │ /recommend         — clinical recommendations        │  │
 │  └──────────────────────────────────────────────────────┘  │
-│                          │                                   │
-│                  Loaded at Startup                           │
-│                          │                                   │
+│                          │                                 │
+│                  Loaded at Startup                         │
+│                          │                                 │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │ ML Models (in backend/models/):                       │  │
+│  │ ML Models (in backend/models/):                      │  │
 │  │  • Ensemble (.pkl) — XGBoost + scikit-learn          │  │
 │  │  • ECG ResNet (.pt) — 12-lead classification         │  │
 │  │  • Scaler + Label Encoders                           │  │
 │  │  • Isolation Forest — anomaly detection              │  │
 │  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
 ```
 
 ### Request-Response Cycle: Vital Signs Submission
@@ -437,9 +436,7 @@ pip install -r requirements.txt
 | Variable | Default | Required | Purpose |
 |----------|---------|----------|---------|
 | `VITE_API_BASE_URL` | — | ✓ | Backend FastAPI base URL (e.g., `http://localhost:8000`) |
-| `ANTHROPIC_API_KEY` | — | ✗ | Anthropic API key for Claude chat (fallback to demo if not set) |
 | `OPENAI_API_KEY` | — | ✗ | OpenAI key for GenAI endpoints (optional, for MedGemma) |
-| `GOOGLE_API_KEY` | — | ✗ | Google Generative AI key (optional) |
 
 ### Running Locally
 
@@ -468,9 +465,7 @@ Open your browser to `http://localhost:5173` and start exploring.
 | Key | Example | Description | Required |
 |-----|---------|-------------|----------|
 | `VITE_API_BASE_URL` | `http://localhost:8000` | Backend FastAPI server URL. Must match frontend origin for CORS. | ✓ |
-| `ANTHROPIC_API_KEY` | `sk-ant-v0-...` | Anthropic Claude API key. If not set, chat uses demo fallback. | ✗ |
 | `OPENAI_API_KEY` | `sk-...` | OpenAI API key for GenAI-backed clinical recommendations. | ✗ |
-| `GOOGLE_API_KEY` | `AIza...` | Google Generative AI key (future multimodal features). | ✗ |
 
 **Setup:**
 1. Copy `.env.example` to `.env`
